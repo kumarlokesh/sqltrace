@@ -54,7 +54,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .title("SQL Query")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow));
-    
+
     let query_paragraph = Paragraph::new(app.query.as_str())
         .block(query_block)
         .wrap(Wrap { trim: true });
@@ -64,12 +64,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let plan_block = Block::default()
         .title("Execution Plan")
         .borders(Borders::ALL);
-    
+
     let plan_text = match &app.plan {
         Some(plan) => format!("{:#?}", plan), // Simple debug output for now
         None => "No execution plan available. Run a query first.".to_string(),
     };
-    
+
     let plan_paragraph = Paragraph::new(plan_text)
         .block(plan_block)
         .wrap(Wrap { trim: true });

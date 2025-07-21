@@ -10,10 +10,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use tracing::info;
 
 use crate::{
@@ -55,7 +52,7 @@ async fn main() -> Result<()> {
 
     // Create application
     let mut app = App::new();
-    
+
     // Set initial query if provided
     if let Some(query) = args.query {
         app.query = query;
