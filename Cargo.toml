@@ -9,7 +9,7 @@ repository = "https://github.com/kumarlokesh/sqltrace-rs"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "offline"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "migrate"], default-features = false }
 ratatui = { version = "0.25.0", features = ["crossterm"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -19,3 +19,12 @@ clap = { version = "4.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 crossterm = "0.27.0"
+dotenv = "0.15"
+
+# Enable offline mode for development
+[package.metadata.sqlx]
+offline = true
+
+[dev-dependencies]
+tempfile = "3.2"
+assert_matches = "1.5"

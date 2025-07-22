@@ -94,12 +94,14 @@ async fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Enter => {
                         // Execute query and update plan
                         if !app.query.is_empty() {
-                            match db.explain_query(&app.query).await {
+                            match db.explain(&app.query).await {
                                 Ok(plan) => {
-                                    app.plan = Some(plan);
+                                    app.plan = Some(serde_json::to_value(plan).unwrap_or_else(
+                                        |e| serde_json::json!({ "error": e.to_string() }),
+                                    ));
                                 }
                                 Err(e) => {
-                                    app.plan = Some(serde_json::json!({"error": e.to_string()}));
+                                    app.plan = Some(serde_json::json!({ "error": e.to_string() }));
                                 }
                             }
                         }

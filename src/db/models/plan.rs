@@ -57,23 +57,36 @@ impl PlanNode {
     }
 }
 
+/// Represents the top-level structure of a PostgreSQL EXPLAIN output
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExplainOutput {
+    /// The execution plan
+    #[serde(rename = "Plan")]
+    pub plan: PlanNode,
+
+    /// Planning time in milliseconds
+    #[serde(rename = "Planning Time")]
+    pub planning_time: f64,
+
+    /// Execution time in milliseconds
+    #[serde(rename = "Execution Time")]
+    pub execution_time: f64,
+
+    /// Additional fields we might want to capture
+    #[serde(flatten)]
+    pub extra: serde_json::Value,
+}
+
 /// Represents a complete execution plan
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionPlan {
     /// The root node of the execution plan
-    #[serde(flatten)]
     pub root: PlanNode,
 
     /// Total planning time in milliseconds
-    ///
-    /// This matches PostgreSQL's EXPLAIN ANALYZE output format.
-    #[serde(rename = "Planning Time")]
     pub planning_time: f64,
 
     /// Total execution time in milliseconds
-    ///
-    /// This matches PostgreSQL's EXPLAIN ANALYZE output format.
-    #[serde(rename = "Execution Time")]
     pub execution_time: f64,
 }
 

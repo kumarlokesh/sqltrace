@@ -1,13 +1,9 @@
 use ratatui::{
-    backend::Backend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    text::{Span, Spans},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
-
-use crate::error::Result;
 
 pub struct App {
     pub should_quit: bool,
@@ -36,7 +32,7 @@ impl App {
     }
 }
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+pub fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)

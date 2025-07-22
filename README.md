@@ -18,6 +18,78 @@ A high-performance, terminal-based SQL query visualizer and advisor that helps d
 
 ### Prerequisites
 
+- [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
+- [PostgreSQL](https://www.postgresql.org/download/) (for running tests)
+- [just](https://github.com/casey/just) (optional, for running development tasks)
+
+## 🧪 Testing
+
+### Prerequisites
+
+- [Docker](https://www.docker.com/get-started) (for running the test database)
+- [docker-compose](https://docs.docker.com/compose/install/) (usually comes with Docker Desktop)
+
+### Setting Up Test Database
+
+Run the setup script to start a PostgreSQL container and set up the test database:
+
+```bash
+# Make the script executable
+chmod +x ./scripts/setup_test_db.sh
+
+# Run the setup script
+./scripts/setup_test_db.sh
+```
+
+This will:
+- Start a PostgreSQL container using Docker
+- Wait for the database to be ready
+- Create a test database
+- Create a test environment file
+
+When you're done testing, you can stop the container with:
+
+```bash
+docker-compose down
+```
+
+### Running Tests
+
+#### Using just (recommended)
+
+```bash
+# Install just if you haven't
+cargo install just
+
+# Run tests
+just test
+
+# Run tests with coverage (requires cargo-tarpaulin)
+just coverage
+
+# Clean up test database
+just clean-test-db
+```
+
+#### Using Cargo directly
+
+```bash
+# Load test environment
+source tests/test.env
+
+# Run tests
+cargo test -- --test-threads=1
+```
+
+### Development Workflow
+
+1. Make your changes
+2. Run tests: `just test`
+3. Run lints: `just lint`
+4. Format code: `cargo fmt`
+
+## 🛠 Development
+
 - Rust (latest stable version)
 - PostgreSQL (for the initial version)
 
