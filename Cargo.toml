@@ -7,6 +7,10 @@ description = "A Terminal-Based SQL Visualizer & Advisor"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/kumarlokesh/sqltrace-rs"
 
+[profile.test]
+# Ensure tests are run sequentially to avoid database deadlocks
+test-threads = 1
+
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "migrate"], default-features = false }
@@ -20,6 +24,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 crossterm = "0.27.0"
 dotenv = "0.15"
+uuid = { version = "1.8.0", features = ["v4"] }
 
 # Enable offline mode for development
 [package.metadata.sqlx]

@@ -1,48 +1,95 @@
 //! Test utilities for integration tests
 
-use sqlx::PgPool;
-use std::env;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use std::sync::Once;
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
-/// Creates a connection pool for testing using Docker Compose configuration
-pub async fn create_test_pool() -> PgPool {
-    // Load environment variables from .env file if it exists
-    dotenv::from_filename(".env").ok();
-    // Then load from tests/test.env if it exists
-    dotenv::from_filename("tests/test.env").ok();
-    // Finally, load from environment
-    dotenv::dotenv().ok();
+static INIT: Once = Once::new();
 
-    // Default to Docker Compose configuration if not set
-    let database_url = env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://postgres:postgres@localhost:5432/sqltrace_test".to_string()
-    });
+/// Creates a connection to the default postgres database for administrative tasks
+async fn create_admin_pool() -> PgPool {
+    let admin_url = "postgres://postgres:postgres@localhost:5432/postgres";
 
-    println!("Connecting to database: {}", database_url);
-
-    // Try to connect with retries to handle database startup time
     let mut retries = 5;
     loop {
-        match PgPool::connect(&database_url).await {
-            Ok(pool) => {
-                println!("Successfully connected to test database");
-                return pool;
-            }
+        match PgPoolOptions::new()
+            .max_connections(1)
+            .connect(admin_url)
+            .await
+        {
+            Ok(pool) => return pool,
             Err(e) if retries > 0 => {
                 eprintln!(
-                    "Failed to connect to test database: {}. Retrying... ({} attempts left)",
+                    "Failed to connect to admin database: {}. Retrying... ({} attempts left)",
                     e, retries
                 );
                 retries -= 1;
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
-            Err(e) => {
-                panic!(
-                    "Failed to connect to test database after multiple attempts: {}",
-                    e
-                );
-            }
+            Err(e) => panic!("Failed to connect to admin database: {}", e),
         }
     }
+}
+
+/// Creates a new test database with a unique name
+async fn create_test_database() -> (String, PgPool) {
+    let admin_pool = create_admin_pool().await;
+    let db_name = format!(
+        "test_db_{}_{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        Uuid::new_v4()
+    );
+
+    // Create a new database
+    sqlx::query(&format!("CREATE DATABASE \"{}\"", db_name))
+        .execute(&admin_pool)
+        .await
+        .expect("Failed to create test database");
+
+    // Connect to the new database
+    let test_db_url = format!("postgres://postgres:postgres@localhost:5432/{}", db_name);
+    let test_pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&test_db_url)
+        .await
+        .expect("Failed to connect to test database");
+
+    (db_name, test_pool)
+}
+
+/// Drops a test database
+async fn drop_test_database(db_name: &str) {
+    let admin_pool = create_admin_pool().await;
+
+    // Terminate all connections to the test database
+    sqlx::query(&format!(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+         WHERE datname = $1 AND pid <> pg_backend_pid()",
+    ))
+    .bind(&db_name)
+    .execute(&admin_pool)
+    .await
+    .ok();
+
+    // Drop the database
+    sqlx::query(&format!("DROP DATABASE IF EXISTS \"{}\"", db_name))
+        .execute(&admin_pool)
+        .await
+        .ok();
+}
+
+/// Creates a connection pool for testing using a fresh database
+pub async fn create_test_pool() -> (String, PgPool) {
+    // Load environment variables from .env file if it exists
+    dotenv::from_filename(".env").ok();
+    dotenv::from_filename("tests/test.env").ok();
+    dotenv::dotenv().ok();
+
+    create_test_database().await
 }
 
 /// Sets up test tables and data
@@ -107,20 +154,49 @@ pub async fn setup_test_database(pool: &PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
-/// Drops all test tables
+/// Drops all test tables and resets the database to a clean state
 pub async fn teardown_test_database(pool: &PgPool) -> sqlx::Result<()> {
-    let drop_statements = [
-        "DROP TABLE IF EXISTS posts CASCADE",
-        "DROP TABLE IF EXISTS users CASCADE",
-    ];
+    // Disable triggers to avoid dependency issues during cleanup
+    sqlx::query("SET session_replication_role = 'replica'")
+        .execute(pool)
+        .await?;
 
-    // Execute each DROP statement separately
-    for sql in &drop_statements {
-        if let Err(e) = sqlx::query(sql).execute(pool).await {
-            eprintln!("Warning: Failed to execute '{}': {}", sql, e);
-            // Continue with other statements even if one fails
+    // Get all tables in the public schema
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT tablename FROM pg_tables
+         WHERE schemaname = 'public'",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Drop all tables with CASCADE
+    for table in tables {
+        let sql = format!("DROP TABLE IF EXISTS \"{}\" CASCADE", table);
+        if let Err(e) = sqlx::query(&sql).execute(pool).await {
+            eprintln!("Warning: Failed to drop table '{}': {}", table, e);
         }
     }
+
+    // Get all sequences in the public schema
+    let sequences: Vec<String> = sqlx::query_scalar(
+        "SELECT sequence_name FROM information_schema.sequences
+         WHERE sequence_schema = 'public'",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Drop all sequences
+    for seq in sequences {
+        let sql = format!("DROP SEQUENCE IF EXISTS \"{}\" CASCADE", seq);
+        if let Err(e) = sqlx::query(&sql).execute(pool).await {
+            eprintln!("Warning: Failed to drop sequence '{}': {}", seq, e);
+        }
+    }
+
+    // Re-enable triggers
+    sqlx::query("SET session_replication_role = 'origin'")
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -132,21 +208,18 @@ where
     Fut: std::future::Future<Output = anyhow::Result<()>>,
 {
     // Create a temporary database for testing
-    let pool = create_test_pool().await;
+    let (db_name, pool) = create_test_pool().await;
 
     // Set up test data
     setup_test_database(&pool).await?;
 
-    // Clone the pool for cleanup
-    let pool_for_cleanup = pool.clone();
+    // Run the test with the pool
+    let test_result = test(pool).await;
 
-    // Run the test with the original pool
-    let result = test(pool).await;
+    // Clean up by dropping the test database
+    drop_test_database(&db_name).await;
 
-    // Clean up using the cloned pool
-    teardown_test_database(&pool_for_cleanup).await?;
-
-    result
+    test_result
 }
 
 #[cfg(test)]

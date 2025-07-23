@@ -10,14 +10,9 @@ use test_utils::with_test_database;
 async fn test_explain_simple_query() -> anyhow::Result<()> {
     with_test_database(|pool| async move {
         let db = Database::from_pool(pool);
-
-        // Test a simple query
         let plan = db.explain("SELECT * FROM users WHERE id = 1").await?;
 
-        // Verify we got a plan back
         assert!(!plan.root.node_type.is_empty(), "Expected a valid plan");
-
-        // Verify timing information
         assert!(
             plan.planning_time >= 0.0,
             "Expected planning time to be recorded"
@@ -36,8 +31,6 @@ async fn test_explain_simple_query() -> anyhow::Result<()> {
 async fn test_explain_with_join() -> anyhow::Result<()> {
     with_test_database(|pool| async move {
         let db = Database::from_pool(pool);
-
-        // Test a join query
         let plan = db
             .explain(
                 "SELECT u.name, p.title FROM users u 
@@ -109,123 +102,63 @@ async fn test_explain_with_complex_query() -> anyhow::Result<()> {
             )
             .await?;
 
-        // Debug: Print the plan structure
-        println!("Plan structure: {:#?}", plan);
+        assert!(!plan.root.node_type.is_empty(), "Expected a non-empty plan");
 
-        // Debug function to print the full plan structure
-        fn print_plan_node(node: &PlanNode, indent: usize) {
-            let indent_str = "  ".repeat(indent);
-            let parent_rel = node
-                .extra
-                .get("Parent Relationship")
-                .and_then(|v| v.as_str())
-                .unwrap_or("None");
-
-            // Print node type and parent relationship
-            println!(
-                "{}- {} (Parent Relationship: {})",
-                indent_str, node.node_type, parent_rel
-            );
-
-            // Print additional node information
-            println!("{}  Alias: {:?}", indent_str, node.alias);
-
-            // Print any subplan or subquery information
-            if let Some(subplan_name) = node.extra.get("Subplan Name").and_then(|v| v.as_str()) {
-                println!("{}  Subplan Name: {}", indent_str, subplan_name);
-            }
-
-            if let Some(plan_rows) = node.extra.get("Plan Rows").and_then(|v| v.as_f64()) {
-                println!("{}  Plan Rows: {}", indent_str, plan_rows);
-            }
-
-            // Print all extra fields for debugging
-            if !node.extra.is_null() {
-                println!("{}  Extra fields:", indent_str);
-                for (key, value) in node.extra.as_object().unwrap() {
-                    println!("{}    {}: {:?}", indent_str, key, value);
+        /// Recursively searches for a subplan in the execution plan.
+        ///
+        /// A subplan is identified by the presence of either:
+        /// 1. A "Subplan Name" field that is not null, or
+        /// 2. A "Parent Relationship" field with the value "SubPlan"
+        ///
+        /// Returns a tuple where the first element indicates if a subplan was found,
+        /// and the second element contains a string representation of the plan traversal
+        /// for debugging purposes.
+        fn has_subplan(node: &PlanNode, depth: usize) -> (bool, String) {
+            let indent = "  ".repeat(depth);
+            let debug_output = format!("{}Node: {}\n", indent, node.node_type);
+            if let serde_json::Value::Object(map) = &node.extra {
+                // Check if this node is a subplan
+                let is_subplan = map.get("Subplan Name").map_or(false, |v| !v.is_null()) ||
+                               map.get("Parent Relationship").map_or(false, |v| v == "SubPlan");
+                if is_subplan {
+                    return (true, debug_output);
+                }
+                // Recursively check child plans in the extra field
+                if let Some(serde_json::Value::Array(plans)) = map.get("Plans") {
+                    for plan in plans {
+                        if let Ok(child_node) = serde_json::from_value::<PlanNode>(plan.clone()) {
+                            let (found, _) = has_subplan(&child_node, depth + 1);
+                            if found {
+                                return (true, debug_output);
+                            }
+                        }
+                    }
                 }
             }
-
-            // Recursively print child nodes
+            // Check top-level plans vector
             for child in &node.plans {
-                print_plan_node(child, indent + 1);
-            }
-        }
-
-        // Print the full plan structure for debugging
-        println!("Full execution plan structure:");
-        print_plan_node(&plan.root, 0);
-
-        // Debug: Print the full structure of the first few nodes to understand the data structure
-        println!("\nDebugging PlanNode structure:");
-        println!("Root node type: {}", plan.root.node_type);
-        println!("Root node extra fields: {:?}", plan.root.extra);
-
-        if !plan.root.plans.is_empty() {
-            println!("\nFirst child node:");
-            println!("  Type: {}", plan.root.plans[0].node_type);
-            println!("  Extra: {:?}", plan.root.plans[0].extra);
-
-            if !plan.root.plans[0].plans.is_empty() {
-                println!("\nFirst grandchild node:");
-                println!("  Type: {}", plan.root.plans[0].plans[0].node_type);
-                println!("  Extra: {:?}", plan.root.plans[0].plans[0].extra);
-            }
-        }
-
-        // Check for subplan in the execution plan
-        // PostgreSQL represents subqueries as nodes with Parent Relationship "SubPlan" or with a Subplan Name
-        fn has_subplan_node(node: &PlanNode) -> bool {
-            // Debug: Print the node type and extra fields
-            println!("\nChecking node: {}", node.node_type);
-            println!("Extra fields: {:?}", node.extra);
-
-            // Check if this node is a SubPlan by checking the extra fields
-            let mut is_subplan = false;
-
-            // Check for Parent Relationship = "SubPlan"
-            if let Some(serde_json::Value::String(parent_rel)) =
-                node.extra.get("Parent Relationship")
-            {
-                println!("  Found Parent Relationship: {}", parent_rel);
-                if parent_rel == "SubPlan" {
-                    is_subplan = true;
-                    println!("  Found SubPlan via Parent Relationship");
+                let (found, _) = has_subplan(child, depth + 1);
+                if found {
+                    return (true, debug_output);
                 }
             }
-
-            // Check for Subplan Name
-            if node.extra.get("Subplan Name").is_some() {
-                println!("  Found Subplan Name");
-                is_subplan = true;
-            }
-
-            // Check if any child node is a SubPlan
-            println!("  Checking {} child nodes...", node.plans.len());
-            let has_subplan_in_children = node.plans.iter().any(has_subplan_node);
-
-            is_subplan || has_subplan_in_children
+            (false, debug_output)
         }
 
-        // Check if any node in the plan is a SubPlan
-        let has_subplan = has_subplan_node(&plan.root);
+        // Check for join operation (can be various types like Hash Join, Nested Loop, etc.)
+        let has_join = plan.root.node_type.contains("Join");
+        // Check for subplan anywhere in the plan tree
+        let (has_subplan, _) = has_subplan(&plan.root, 0);
 
-        // Print a message about what we found
-        if has_subplan {
-            println!("Found a subplan in the execution plan!");
-        } else {
-            println!("No subplan found in the execution plan based on current detection logic.");
+        assert!(
+            has_join,
+            "Expected plan to include a join operation. This might indicate an issue with the test query or database state."
+        );
 
-            // Print a more detailed error message to help with debugging
-            println!("\nExpected to find a node with either:");
-            println!("1. Parent Relationship = 'SubPlan', or");
-            println!("2. A 'Subplan Name' field");
-            println!("\nBut no such node was found in the execution plan.");
-        }
-
-        // Assert that we found a subplan
-        assert!(has_subplan, "Expected a subplan in the execution plan");
+        assert!(
+            has_subplan,
+            "Expected plan to include a subplan for the subquery. This might indicate that PostgreSQL optimized the query differently than expected."
+        );
 
         Ok(())
     })

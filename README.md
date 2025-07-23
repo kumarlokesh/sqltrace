@@ -139,7 +139,6 @@ graph TD
 
 ## 📚 Documentation
 
-- [Architecture Decision Records](./docs/adr/README.md)
 - [API Reference](https://docs.rs/sqltrace-rs)
 - [Contributing Guide](./CONTRIBUTING.md)
 
