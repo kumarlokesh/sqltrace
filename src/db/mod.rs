@@ -10,7 +10,7 @@ use sqlx::{Pool, Postgres, Row};
 use std::time::Duration;
 
 use crate::db::error::DbError;
-use crate::db::models::plan::{ExecutionPlan, ExplainOutput};
+use crate::db::models::plan::{ExecutionPlan, ExplainOutput, PlanNode};
 use crate::error::{Result, SqlTraceError};
 
 /// Database connection manager
@@ -46,8 +46,6 @@ impl Database {
         // Note: We need to use a raw query here because PostgreSQL doesn't support parameters in EXPLAIN
         let explain_query = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {}", query);
 
-        println!("Executing EXPLAIN query: {}", explain_query);
-
         // Execute the EXPLAIN query directly
         let row = sqlx::query(&explain_query)
             .fetch_one(&self.pool)
@@ -61,33 +59,68 @@ impl Database {
             .map_err(|e: sqlx::Error| DbError::Query(e.to_string()))
             .map_err(|e| SqlTraceError::from(e))?;
 
-        println!("Raw EXPLAIN JSON output: {:#?}", plan_json);
-
-        // EXPLAIN (FORMAT JSON) returns an array with a single plan object
-        // We need to extract the first element of the array
-        let explain_output: ExplainOutput = match plan_json.as_array() {
+        // PostgreSQL EXPLAIN output is an array of objects, take the first one
+        match plan_json.as_array() {
             Some(arr) if !arr.is_empty() => {
-                // Deserialize the first element of the array into ExplainOutput
-                serde_json::from_value(arr[0].clone())
+                let first_item = &arr[0];
+
+                // Extract the plan object which contains the execution details
+                if let Some(plan_obj) = first_item.get("Plan") {
+                    // Create a properly formatted response object that matches the UI's expectations
+                    let mut response = serde_json::Map::new();
+                    response.insert("root".to_string(), plan_obj.clone());
+
+                    // Add planning and execution times
+                    if let Some(planning_time) = first_item.get("Planning Time") {
+                        response.insert("planning_time".to_string(), planning_time.clone());
+                    }
+
+                    if let Some(execution_time) = first_item.get("Execution Time") {
+                        response.insert("execution_time".to_string(), execution_time.clone());
+                    }
+
+                    // Parse the response into an ExecutionPlan
+                    let exec_plan: ExecutionPlan = serde_json::from_value(
+                        serde_json::Value::Object(response),
+                    )
                     .map_err(|e| {
-                        DbError::PlanParsing(format!("Failed to parse EXPLAIN output: {}", e))
-                    })
-                    .map_err(|e| SqlTraceError::from(e))?
+                        let err_msg = format!("Failed to format execution plan: {}", e);
+                        SqlTraceError::from(DbError::PlanParsing(err_msg))
+                    })?;
+
+                    Ok(exec_plan)
+                } else {
+                    // Check if there's an error message
+                    if let Some(error_msg) = first_item.get("error").and_then(|e| e.as_str()) {
+                        return Err(DbError::PlanParsing(format!(
+                            "Database error: {}",
+                            error_msg
+                        )))
+                        .map_err(SqlTraceError::from);
+                    }
+
+                    Err(DbError::PlanParsing(
+                        "No 'Plan' field in EXPLAIN output".to_string(),
+                    ))
+                    .map_err(SqlTraceError::from)
+                }
             }
             _ => {
-                return Err(DbError::PlanParsing(
-                    "Expected non-empty array in EXPLAIN output".to_string(),
-                ))
-                .map_err(|e| SqlTraceError::from(e))
-            }
-        };
+                // Check if it's an error object
+                if let Some(error_msg) = plan_json.get("error").and_then(|e| e.as_str()) {
+                    return Err(DbError::PlanParsing(format!(
+                        "Database error: {}",
+                        error_msg
+                    )))
+                    .map_err(SqlTraceError::from);
+                }
 
-        // Convert the ExplainOutput to our ExecutionPlan
-        Ok(ExecutionPlan {
-            root: explain_output.plan,
-            planning_time: explain_output.planning_time,
-            execution_time: explain_output.execution_time,
-        })
+                Err(DbError::PlanParsing(
+                    "Unexpected EXPLAIN output format".to_string(),
+                ))
+                .map_err(SqlTraceError::from)
+            }
+        }
     }
 
     /// Validate that a query is a SELECT query

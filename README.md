@@ -27,7 +27,7 @@ A high-performance, terminal-based SQL query visualizer and advisor that helps d
 ### Prerequisites
 
 - [Docker](https://www.docker.com/get-started) (for running the test database)
-- [docker-compose](https://docs.docker.com/compose/install/) (usually comes with Docker Desktop)
+- [docker-compose](https://docs.docker.com/compose/install/)
 
 ### Setting Up Test Database
 
@@ -42,6 +42,7 @@ chmod +x ./scripts/setup_test_db.sh
 ```
 
 This will:
+
 - Start a PostgreSQL container using Docker
 - Wait for the database to be ready
 - Create a test database
@@ -147,9 +148,13 @@ graph TD
 ### Phase 1: MVP (PostgreSQL)
 
 - [x] Project setup and basic structure
-- [ ] PostgreSQL connection and query execution
+- [x] PostgreSQL connection and query execution
+  - [x] Database connection pooling
+  - [x] Query execution with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+  - [x] Execution plan parsing and deserialization
+  - [x] Comprehensive test coverage for various query types
 - [ ] Basic TUI for plan visualization
-- [ ] Support for EXPLAIN ANALYZE
+- [x] Support for EXPLAIN ANALYZE
 
 ### Phase 2: Advisor Engine
 
