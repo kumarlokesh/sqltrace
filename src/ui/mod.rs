@@ -1,3 +1,11 @@
+//! Terminal User Interface (TUI) module for SQL Trace
+//!
+//! This module handles all terminal-based user interface components, including:
+//! - Query input and validation
+//! - Execution plan visualization
+//! - Interactive plan exploration
+//! - Error display and user feedback
+
 use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -140,66 +148,149 @@ fn render_plan_node(
 }
 
 /// Recursively builds the plan tree UI structure
-fn build_plan_tree_ui(
+pub fn build_plan_tree_ui(
     node: &PlanNode,
     tree_ui: &mut PlanTree,
-    node_index: usize,
+    _node_index: usize, // Not currently used, but kept for future use
     parent_index: Option<usize>,
-) {
+) -> usize {
+    // Create a copy of the plan node to store in the UI
+    let node_copy = node.clone();
+
+    // Create the current node UI
+    let current_index = tree_ui.nodes.len();
     let children_count = node.plans.len();
     let mut child_indices = Vec::with_capacity(children_count);
 
-    // Add children
-    for (i, child) in node.plans.iter().enumerate() {
-        let child_index = tree_ui.nodes.len();
+    // Add the current node to the tree with a copy of the plan node
+    tree_ui.nodes.push(PlanNodeUI {
+        expanded: true, // Expand by default
+        children: Vec::new(),
+        plan_node: node_copy,
+    });
+
+    // Process children
+    for child in &node.plans {
+        let child_index = build_plan_tree_ui(child, tree_ui, current_index, Some(current_index));
         child_indices.push(child_index);
-
-        tree_ui.nodes.push(PlanNodeUI {
-            expanded: i == 0, // Expand first child by default
-            children: Vec::new(),
-        });
-
-        build_plan_tree_ui(child, tree_ui, child_index, Some(node_index));
     }
 
     // Update current node with children indices
-    if let Some(parent_idx) = parent_index {
-        tree_ui.nodes[parent_idx].children = child_indices;
-    } else {
-        tree_ui.root_indices = child_indices;
+    if let Some(node_ui) = tree_ui.nodes.get_mut(current_index) {
+        node_ui.children = child_indices;
+    }
+
+    // If this is a root node, add it to root_indices
+    if parent_index.is_none() {
+        tree_ui.root_indices.push(current_index);
+    }
+
+    current_index
+}
+
+/// Represents a UI node in the execution plan tree
+///
+/// This struct holds the visual state and data for a single node
+/// in the execution plan tree, including its expansion state and
+/// child relationships.
+#[derive(Debug)]
+pub struct PlanNodeUI {
+    /// Whether this node is currently expanded in the UI
+    pub expanded: bool,
+    /// Indices of child nodes in the parent's node list
+    pub children: Vec<usize>,
+    /// The actual plan node data being visualized
+    pub plan_node: PlanNode,
+}
+
+impl Default for PlanNodeUI {
+    fn default() -> Self {
+        Self {
+            expanded: true,
+            children: Vec::new(),
+            plan_node: PlanNode {
+                node_type: String::new(),
+                relation_name: None,
+                alias: None,
+                startup_cost: 0.0,
+                total_cost: 0.0,
+                actual_time: 0.0,
+                actual_rows: 0,
+                actual_loops: 0,
+                plans: Vec::new(),
+                extra: serde_json::Value::Object(serde_json::Map::new()),
+            },
+        }
     }
 }
 
-#[derive(Debug, Default)]
-pub struct PlanNodeUI {
-    pub expanded: bool,
-    pub children: Vec<usize>,
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+/// Helper function to compute a hash of the plan for change detection
+fn plan_hash(plan: &serde_json::Value) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    plan.to_string().hash(&mut hasher);
+    hasher.finish()
 }
 
+/// Represents the complete execution plan tree structure for UI rendering
+///
+/// This struct maintains the tree structure of the execution plan
+/// along with metadata needed for efficient rendering and interaction.
 #[derive(Debug, Default)]
 pub struct PlanTree {
+    /// All nodes in the tree, stored in a flat structure
     pub nodes: Vec<PlanNodeUI>,
+    /// Indices of root nodes in the nodes vector
     pub root_indices: Vec<usize>,
+    /// Hash of the last processed plan for change detection
+    pub last_plan_hash: Option<u64>,
 }
 
+/// The main application state for the TUI
+///
+/// This struct holds all the state needed to render and update
+/// the terminal user interface.
 pub struct App {
+    /// Whether the application should exit
     pub should_quit: bool,
+    /// The current SQL query being edited or executed
     pub query: String,
+    /// The current execution plan as raw JSON
     pub plan: Option<serde_json::Value>,
+    /// The UI representation of the execution plan
     pub plan_tree: PlanTree,
+    /// Index of the currently selected node in the plan tree
     pub selected_node: Option<usize>,
+    /// Current vertical scroll offset in the plan view
     pub scroll_offset: u16,
+    /// Current input mode (Query or Plan)
     pub input_mode: InputMode,
 }
 
+/// Represents the current input mode of the application
+///
+/// The application can be in different modes that affect
+/// how keyboard input is processed.
+/// Represents the current input mode of the application
+///
+/// The application can be in different modes that affect
+/// how keyboard input is processed.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InputMode {
+    /// In query mode, user can type and edit SQL queries
     Query,
+    /// In plan mode, user can navigate and interact with the execution plan
     Plan,
 }
 
-impl App {
-    pub fn new() -> Self {
+impl Default for App {
+    /// Creates a new App instance with default values
+    ///
+    /// # Returns
+    /// A new `App` instance with empty state and default settings
+    fn default() -> Self {
         Self {
             should_quit: false,
             query: String::new(),
@@ -210,11 +301,32 @@ impl App {
             input_mode: InputMode::Query,
         }
     }
+}
 
+impl App {
+    /// Creates a new App instance with default values
+    ///
+    /// # Returns
+    /// A new `App` instance with empty state and default settings
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Handles periodic updates to the application state
+    ///
+    /// This method is called on each tick of the main event loop
+    /// and can be used to update animations or other time-based state.
     pub fn on_tick(&mut self) {
         // Update app state on each tick if needed
     }
 
+    /// Handles a key press event
+    ///
+    /// # Arguments
+    /// * `key` - The key that was pressed
+    ///
+    /// # Returns
+    /// `true` if the key was handled, `false` otherwise
     pub fn on_key(&mut self, key: KeyCode) -> bool {
         match self.input_mode {
             InputMode::Query => self.handle_query_mode(key),
@@ -222,6 +334,13 @@ impl App {
         }
     }
 
+    /// Handles key presses when in Query mode
+    ///
+    /// # Arguments
+    /// * `key` - The key that was pressed
+    ///
+    /// # Returns
+    /// `true` if the key was handled, `false` otherwise
     fn handle_query_mode(&mut self, key: KeyCode) -> bool {
         match key {
             KeyCode::Char('q') => {
@@ -249,6 +368,13 @@ impl App {
         }
     }
 
+    /// Handles key presses when in Plan mode
+    ///
+    /// # Arguments
+    /// * `key` - The key that was pressed
+    ///
+    /// # Returns
+    /// `true` if the key was handled, `false` otherwise
     fn handle_plan_mode(&mut self, key: KeyCode) -> bool {
         match key {
             KeyCode::Char('q') => {
@@ -283,21 +409,29 @@ impl App {
         }
     }
 
+    /// Moves the current selection in the plan tree
+    ///
+    /// # Arguments
+    /// * `delta` - The number of positions to move (positive for down, negative for up)
     fn move_selection(&mut self, delta: i32) {
         if self.plan_tree.nodes.is_empty() {
             return;
         }
 
-        let node_count = self.plan_tree.nodes.len();
-        let current = self.selected_node.unwrap_or(0) as i32;
-        let new_selection = (current + delta).max(0).min(node_count as i32 - 1) as usize;
-
-        if new_selection != current as usize {
-            self.selected_node = Some(new_selection);
-            // TODO: Update scroll position if needed
+        match self.selected_node {
+            Some(selected) => {
+                let new_index =
+                    (selected as i32 + delta).max(0) as usize % self.plan_tree.nodes.len();
+                self.selected_node = Some(new_index);
+            }
+            None if !self.plan_tree.nodes.is_empty() => {
+                self.selected_node = Some(0);
+            }
+            _ => {}
         }
     }
 
+    /// Expands the currently selected node in the plan tree
     fn expand_node(&mut self) {
         if let Some(node_idx) = self.selected_node {
             if node_idx < self.plan_tree.nodes.len() {
@@ -306,6 +440,7 @@ impl App {
         }
     }
 
+    /// Collapses the currently selected node in the plan tree
     fn collapse_node(&mut self) {
         if let Some(node_idx) = self.selected_node {
             if node_idx < self.plan_tree.nodes.len() {
@@ -314,6 +449,7 @@ impl App {
         }
     }
 
+    /// Toggles the expansion state of the currently selected node
     fn toggle_node(&mut self) {
         if let Some(node_idx) = self.selected_node {
             if node_idx < self.plan_tree.nodes.len() {
@@ -324,41 +460,55 @@ impl App {
     }
 }
 
-/// Collects all visible nodes in the plan tree for rendering
+// / Recursively traverses the plan tree to collect visible nodes for rendering
 fn collect_visible_nodes(
-    plan: &ExecutionPlan,
+    _plan: &ExecutionPlan, // No longer needed as we have plan nodes in UI nodes
     tree_ui: &PlanTree,
     node_indices: &[usize],
     level: usize,
     selected_node: Option<usize>,
-    scroll_offset: u16,
+    _scroll_offset: u16, // Unused for now, but kept for future use
 ) -> Vec<(usize, PlanNode, bool, bool, usize, bool)> {
     let mut result = Vec::new();
 
+    // Process each UI node index
     for &node_idx in node_indices {
+        // Check if the node index is valid
+        if node_idx >= tree_ui.nodes.len() {
+            println!(
+                "DEBUG - Invalid node index: {} (nodes length: {})",
+                node_idx,
+                tree_ui.nodes.len()
+            );
+            continue;
+        }
+
         let node_ui = &tree_ui.nodes[node_idx];
         let is_selected = Some(node_idx) == selected_node;
 
-        // Add the node itself
+        // Add the current node to the result with its plan node
         result.push((
             node_idx,
-            plan.root.clone(), // We'll need to get the actual node here
+            node_ui.plan_node.clone(), // Use the plan node stored in the UI node
             is_selected,
             node_ui.expanded,
             level,
             !node_ui.children.is_empty(),
         ));
 
-        // Add children if expanded
+        // If this node has children and is expanded, process them
         if node_ui.expanded && !node_ui.children.is_empty() {
+            // Recursively process children
             let children = collect_visible_nodes(
-                plan,
+                _plan,
                 tree_ui,
                 &node_ui.children,
                 level + 1,
                 selected_node,
-                scroll_offset,
+                _scroll_offset,
             );
+
+            // Add the children to the result
             result.extend(children);
         }
     }
@@ -366,6 +516,11 @@ fn collect_visible_nodes(
     result
 }
 
+/// Renders the application UI to the terminal
+///
+/// # Arguments
+/// * `f` - The frame to render to
+/// * `app` - The application state to render
 pub fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -420,65 +575,77 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     f.render_widget(plan_block, chunks[2]);
 
     // If we have a plan, render it
-    if let (Some(plan), Some(exec_plan)) = (
-        &app.plan,
-        &app.plan.as_ref().and_then(|p| {
-            let parsed = serde_json::from_value::<ExecutionPlan>(p.clone());
-            if let Err(e) = &parsed {
-                println!("DEBUG - Error parsing plan: {}", e);
+    if let Some(plan) = &app.plan {
+        let exec_plan = match serde_json::from_value::<ExecutionPlan>(plan.clone()) {
+            Ok(plan) => Some(plan),
+            Err(e) => {
+                eprintln!("Error parsing execution plan: {}", e);
+                None
             }
-            parsed.ok()
-        }),
-    ) {
-        // Check if there was an error in the plan
-        if let Some(error) = plan.get("error").and_then(|e| e.as_str()) {
-            let error_msg = Paragraph::new(format!("Error executing query:\n{}", error))
-                .style(Style::default().fg(Color::Red))
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Error")
-                        .border_style(Style::default().fg(Color::Red)),
-                );
-            f.render_widget(error_msg, plan_area);
-            return;
-        }
-        // Build the plan tree UI if not already done
-        if app.plan_tree.nodes.is_empty() {
+        };
+
+        if let Some(exec_plan) = &exec_plan {
+            // Check if there was an error in the plan
+            if let Some(error) = plan.get("error").and_then(|e| e.as_str()) {
+                let error_msg = Paragraph::new(format!("Error executing query:\n{}", error))
+                    .style(Style::default().fg(Color::Red))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("Error")
+                            .border_style(Style::default().fg(Color::Red)),
+                    );
+                f.render_widget(error_msg, plan_area);
+                return;
+            }
+            // Clear existing tree
+            app.plan_tree = PlanTree::default();
+
+            // Build new tree with the root node
             build_plan_tree_ui(&exec_plan.root, &mut app.plan_tree, 0, None);
-            // Select the first node by default
+
+            // Store hash of the current plan to detect changes
+            app.plan_tree.last_plan_hash = Some(plan_hash(plan));
+
+            // Select the first node by default if we have any nodes
             if !app.plan_tree.root_indices.is_empty() {
-                app.selected_node = Some(app.plan_tree.root_indices[0]);
+                let first_node = app.plan_tree.root_indices[0];
+                app.selected_node = Some(first_node);
             }
+
+            // Collect all visible nodes
+            let visible_nodes = collect_visible_nodes(
+                &exec_plan,
+                &app.plan_tree,
+                &app.plan_tree.root_indices,
+                0,
+                app.selected_node,
+                app.scroll_offset,
+            );
+
+            let items: Vec<ListItem> = visible_nodes
+                .into_iter()
+                .map(|(_, node, is_selected, is_expanded, level, has_children)| {
+                    let text =
+                        render_plan_node(&node, is_selected, is_expanded, has_children, level);
+                    ListItem::new(text)
+                })
+                .collect();
+
+            // Create and render the list
+            let list = List::new(items)
+                .block(Block::default())
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+
+            let mut state = ListState::default();
+            state.select(app.selected_node);
+            f.render_stateful_widget(list, plan_area, &mut state);
+        } else {
+            // No valid execution plan to display
+            let no_plan = Paragraph::new("No valid execution plan to display")
+                .block(Block::default().borders(Borders::ALL));
+            f.render_widget(no_plan, plan_area);
         }
-
-        // Collect all visible nodes
-        let visible_nodes = collect_visible_nodes(
-            exec_plan,
-            &app.plan_tree,
-            &app.plan_tree.root_indices,
-            0,
-            app.selected_node,
-            app.scroll_offset,
-        );
-
-        // Create a list of rendered nodes
-        let items: Vec<ListItem> = visible_nodes
-            .into_iter()
-            .map(|(_, node, is_selected, is_expanded, level, has_children)| {
-                let text = render_plan_node(&node, is_selected, is_expanded, has_children, level);
-                ListItem::new(text)
-            })
-            .collect();
-
-        // Create and render the list
-        let list = List::new(items)
-            .block(Block::default())
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD));
-
-        let mut state = ListState::default();
-        state.select(app.selected_node);
-        f.render_stateful_widget(list, plan_area, &mut state);
     } else {
         // No plan available
         let no_plan = Paragraph::new("No execution plan available. \n\n")

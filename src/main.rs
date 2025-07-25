@@ -1,23 +1,37 @@
+//! SQL Trace - A Terminal-Based SQL Visualizer & Advisor
+//!
+//! This tool helps developers understand and optimize SQL queries by visualizing
+//! their execution plans in an interactive terminal interface.
+
+#![warn(missing_docs)]
+
 mod db;
 mod error;
 mod ui;
 
 use std::{io, time::Duration};
 
-use clap::Parser;
+use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+
+// Configure logging
+fn setup_logging() {
+    // Only log errors in the application
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "error");
+    }
+    env_logger::init();
+}
+
 use tracing::info;
 
-use crate::{
-    db::Database,
-    error::Result,
-    ui::{draw, App},
-};
+use crate::{db::Database, error::Result as SqlTraceResult};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -32,9 +46,9 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+async fn main() -> SqlTraceResult<()> {
+    // Set up logging first
+    setup_logging();
 
     // Parse command line arguments
     let args = Args::parse();
@@ -54,10 +68,10 @@ async fn main() -> Result<()> {
     let app = ui::App::new();
 
     // If a query was provided as a command-line argument, set it in the app
-    let mut app = if let Some(query) = args.query {
-        let mut app = app;
-        app.query = query;
-        app
+    let app = if let Some(query) = args.query {
+        let mut app_with_query = app;
+        app_with_query.query = query;
+        app_with_query
     } else {
         app
     };
@@ -120,10 +134,35 @@ async fn run_app<B: ratatui::backend::Backend>(
                     match db.explain(&app.query).await {
                         Ok(plan) => {
                             // Convert the plan to JSON for storage
-                            app.plan =
-                                Some(serde_json::to_value(&plan).unwrap_or_else(
-                                    |e| serde_json::json!({ "error": e.to_string() }),
-                                ));
+                            let plan_value = serde_json::to_value(&plan)
+                                .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }));
+                            app.plan = Some(plan_value);
+
+                            // Build the plan tree UI
+                            if let Some(plan_value) = &app.plan {
+                                if let Ok(exec_plan) =
+                                    serde_json::from_value::<db::models::plan::ExecutionPlan>(
+                                        plan_value.clone(),
+                                    )
+                                {
+                                    let mut plan_tree = ui::PlanTree::default();
+
+                                    // Build the plan tree UI structure
+                                    ui::build_plan_tree_ui(
+                                        &exec_plan.root,
+                                        &mut plan_tree,
+                                        0,
+                                        None,
+                                    );
+
+                                    app.plan_tree = plan_tree;
+
+                                    // Select the root node if available
+                                    if !app.plan_tree.root_indices.is_empty() {
+                                        app.selected_node = Some(app.plan_tree.root_indices[0]);
+                                    }
+                                }
+                            }
 
                             // Switch to plan mode after execution
                             app.input_mode = ui::InputMode::Plan;

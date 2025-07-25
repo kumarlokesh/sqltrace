@@ -1,6 +1,9 @@
-//! Database module for SQLTrace
+//! Database module for SQL Trace
 //!
-//! This module provides database connectivity and query execution functionality.
+//! This module handles all database interactions including connection management,
+//! query execution, and plan analysis.
+
+#![allow(dead_code)]
 
 pub mod error;
 pub mod models;
@@ -10,7 +13,7 @@ use sqlx::{Pool, Postgres, Row};
 use std::time::Duration;
 
 use crate::db::error::DbError;
-use crate::db::models::plan::{ExecutionPlan, ExplainOutput, PlanNode};
+use crate::db::models::plan::ExecutionPlan;
 use crate::error::{Result, SqlTraceError};
 
 /// Database connection manager
@@ -51,13 +54,13 @@ impl Database {
             .fetch_one(&self.pool)
             .await
             .map_err(|e: sqlx::Error| DbError::Query(e.to_string()))
-            .map_err(|e| SqlTraceError::from(e))?;
+            .map_err(SqlTraceError::from)?;
 
         // The result is a single column containing the JSON plan
         let plan_json: serde_json::Value = row
             .try_get("QUERY PLAN")
             .map_err(|e: sqlx::Error| DbError::Query(e.to_string()))
-            .map_err(|e| SqlTraceError::from(e))?;
+            .map_err(SqlTraceError::from)?;
 
         // PostgreSQL EXPLAIN output is an array of objects, take the first one
         match plan_json.as_array() {
@@ -92,33 +95,29 @@ impl Database {
                 } else {
                     // Check if there's an error message
                     if let Some(error_msg) = first_item.get("error").and_then(|e| e.as_str()) {
-                        return Err(DbError::PlanParsing(format!(
+                        return Err(SqlTraceError::from(DbError::PlanParsing(format!(
                             "Database error: {}",
                             error_msg
-                        )))
-                        .map_err(SqlTraceError::from);
+                        ))));
                     }
 
-                    Err(DbError::PlanParsing(
+                    Err(SqlTraceError::from(DbError::PlanParsing(
                         "No 'Plan' field in EXPLAIN output".to_string(),
-                    ))
-                    .map_err(SqlTraceError::from)
+                    )))
                 }
             }
             _ => {
                 // Check if it's an error object
                 if let Some(error_msg) = plan_json.get("error").and_then(|e| e.as_str()) {
-                    return Err(DbError::PlanParsing(format!(
+                    return Err(SqlTraceError::from(DbError::PlanParsing(format!(
                         "Database error: {}",
                         error_msg
-                    )))
-                    .map_err(SqlTraceError::from);
+                    ))));
                 }
 
-                Err(DbError::PlanParsing(
+                Err(SqlTraceError::from(DbError::PlanParsing(
                     "Unexpected EXPLAIN output format".to_string(),
-                ))
-                .map_err(SqlTraceError::from)
+                )))
             }
         }
     }

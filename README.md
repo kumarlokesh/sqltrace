@@ -8,11 +8,12 @@ A high-performance, terminal-based SQL query visualizer and advisor that helps d
 
 ## ✨ Features
 
-- **Interactive TUI** for exploring query execution plans
-- **Multi-database support** (PostgreSQL first, with more to come)
-- **Detailed visualizations** of query execution paths
-- **Performance insights** and optimization suggestions
-- **Lightweight** and fast, built with Rust for maximum performance
+- **Interactive TUI** for exploring query execution plans with keyboard navigation
+- **PostgreSQL Support** with full EXPLAIN ANALYZE visualization
+- **Plan Visualization** with collapsible nodes and detailed execution metrics
+- **Query Execution** directly from the TUI or command line
+- **Lightweight & Fast** built with Rust for maximum performance
+- **Cross-platform** works anywhere Rust and PostgreSQL are supported
 
 ## 🚀 Getting Started
 
@@ -110,11 +111,55 @@ cargo install --path .
 
 ```bash
 # Connect to a PostgreSQL database and start the interactive TUI
-sqltrace postgres://user:password@localhost:5432/dbname
+sqltrace-rs postgres://user:password@localhost:5432/dbname
 
-# Or analyze a specific query
-sqltrace postgres://user:password@localhost:5432/dbname --query "SELECT * FROM users WHERE id = 1"
+# Or analyze a specific query directly
+sqltrace-rs postgres://user:password@localhost:5432/dbname --query "SELECT * FROM users WHERE id = 1"
+
+# Run with debug logging (for troubleshooting)
+RUST_LOG=debug sqltrace-rs postgres://user:password@localhost:5432/dbname
 ```
+
+### TUI Controls
+
+- **↑/↓**: Navigate between plan nodes
+- **→/←**: Expand/collapse nodes
+- **Enter**: Execute a new query
+- **q**: Quit the application
+- **?**: Show help (key bindings)
+
+## 🛠 Troubleshooting
+
+### Common Issues
+
+- **Connection Issues**: Ensure your database is running and accessible
+
+  ```bash
+  # Test database connection
+  psql postgres://user:password@localhost:5432/dbname -c "SELECT 1"
+  ```
+
+- **Permissions**: The database user needs permission to run EXPLAIN ANALYZE
+
+  ```sql
+  GRANT pg_read_all_stats TO your_username;
+  ```
+
+- **Debugging**: Enable debug logging for more information
+
+  ```bash
+  RUST_LOG=debug sqltrace-rs postgres://...
+  ```
+
+## 📝 Recent Changes
+
+### 0.1.0 (Unreleased)
+
+- Fixed debug output in TUI that was cluttering the interface
+- Improved error handling and user feedback
+- Enhanced plan visualization with better node expansion/collapse
+- Added support for more PostgreSQL plan node types
+- Performance optimizations for large execution plans
 
 ## 🏗️ Architecture
 
@@ -153,7 +198,7 @@ graph TD
   - [x] Query execution with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
   - [x] Execution plan parsing and deserialization
   - [x] Comprehensive test coverage for various query types
-- [ ] Basic TUI for plan visualization
+- [x] Basic TUI for plan visualization
 - [x] Support for EXPLAIN ANALYZE
 
 ### Phase 2: Advisor Engine
