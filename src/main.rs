@@ -107,11 +107,23 @@ async fn run_app<B: ratatui::backend::Backend>(
         // Handle input
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                // Handle key press in the app
-                app.on_key(key.code);
-
-                // Special handling for query execution
+                // Special handling for query execution (Enter in Query mode) - check this first
                 if key.code == KeyCode::Enter && app.input_mode == ui::InputMode::Query {
+                    // Let the app handle the Enter key first to switch to Plan mode
+                    app.on_key(key.code);
+                } else {
+                    // For all other keys, let the app handle them
+                    let key_handled = app.on_key(key.code);
+
+                    // If the key was handled (e.g., navigation in Plan mode), redraw and continue
+                    if key_handled {
+                        terminal.draw(|f| ui::draw(f, &mut app))?;
+                        continue;
+                    }
+                }
+
+                // Handle query execution after mode switch
+                if key.code == KeyCode::Enter && app.input_mode == ui::InputMode::Plan {
                     // Clear previous plan and tree
                     app.plan = None;
                     app.plan_tree = ui::PlanTree::default();
@@ -121,51 +133,73 @@ async fn run_app<B: ratatui::backend::Backend>(
                     // Skip if query is empty
                     if app.query.trim().is_empty() {
                         app.plan = Some(serde_json::json!({ "error": "Query cannot be empty" }));
+                        terminal.draw(|f| ui::draw(f, &mut app))?;
                         continue;
                     }
 
                     // Validate query syntax
                     if let Err(e) = ui::validate_query(&app.query) {
                         app.plan = Some(serde_json::json!({ "error": e }));
+                        terminal.draw(|f| ui::draw(f, &mut app))?;
                         continue;
                     }
+
+                    // Switch to Plan mode before executing the query
+                    app.input_mode = ui::InputMode::Plan;
 
                     // Execute the query and get the plan
                     match db.explain(&app.query).await {
                         Ok(plan) => {
                             // Convert the plan to JSON for storage
-                            let plan_value = serde_json::to_value(&plan)
-                                .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }));
-                            app.plan = Some(plan_value);
+                            match serde_json::to_value(&plan) {
+                                Ok(plan_value) => {
+                                    // Store the raw plan
+                                    app.plan = Some(plan_value.clone());
 
-                            // Build the plan tree UI
-                            if let Some(plan_value) = &app.plan {
-                                if let Ok(exec_plan) =
-                                    serde_json::from_value::<db::models::plan::ExecutionPlan>(
-                                        plan_value.clone(),
-                                    )
-                                {
-                                    let mut plan_tree = ui::PlanTree::default();
+                                    // Clear previous tree state
+                                    app.plan_tree = ui::PlanTree::default();
+                                    app.selected_node = None;
+                                    app.scroll_offset = 0;
 
-                                    // Build the plan tree UI structure
-                                    ui::build_plan_tree_ui(
-                                        &exec_plan.root,
-                                        &mut plan_tree,
-                                        0,
-                                        None,
-                                    );
+                                    // Parse the plan into an ExecutionPlan
+                                    match serde_json::from_value::<db::models::plan::ExecutionPlan>(
+                                        plan_value,
+                                    ) {
+                                        Ok(exec_plan) => {
+                                            // Create a new plan tree
+                                            let mut plan_tree = ui::PlanTree::default();
 
-                                    app.plan_tree = plan_tree;
+                                            // Build the plan tree UI structure
+                                            ui::build_plan_tree_ui(
+                                                &exec_plan.root,
+                                                &mut plan_tree,
+                                                0,
+                                                None,
+                                            );
 
-                                    // Select the root node if available
-                                    if !app.plan_tree.root_indices.is_empty() {
-                                        app.selected_node = Some(app.plan_tree.root_indices[0]);
+                                            // Store the built tree
+                                            app.plan_tree = plan_tree;
+
+                                            // Select the root node if available
+                                            if !app.plan_tree.root_indices.is_empty() {
+                                                app.selected_node =
+                                                    Some(app.plan_tree.root_indices[0]);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            // If we can't parse the plan, show an error
+                                            app.plan = Some(serde_json::json!({
+                                                "error": format!("Failed to parse execution plan: {}", e)
+                                            }));
+                                        }
                                     }
                                 }
+                                Err(e) => {
+                                    app.plan = Some(serde_json::json!({
+                                        "error": format!("Failed to convert plan to JSON: {}", e)
+                                    }));
+                                }
                             }
-
-                            // Switch to plan mode after execution
-                            app.input_mode = ui::InputMode::Plan;
                         }
                         Err(e) => {
                             app.plan = Some(serde_json::json!({ "error": e.to_string() }));

@@ -352,8 +352,10 @@ impl App {
                 true
             }
             KeyCode::Enter => {
-                // Execute the query and get the plan
-                // This will be handled by the main application
+                // Switch to Plan mode to show the execution plan
+                // The actual query execution is handled in the main event loop
+                // when it detects Enter was pressed in Query mode
+                self.input_mode = InputMode::Plan;
                 true
             }
             KeyCode::Char(c) => {
@@ -386,6 +388,15 @@ impl App {
                 true
             }
             KeyCode::Down => {
+                // If current node is collapsed and has children, expand it first
+                if let Some(selected) = self.selected_node {
+                    if let Some(node) = self.plan_tree.nodes.get(selected) {
+                        if !node.expanded && !node.children.is_empty() {
+                            self.expand_node();
+                            return true;
+                        }
+                    }
+                }
                 self.move_selection(1);
                 true
             }
@@ -394,7 +405,24 @@ impl App {
                 true
             }
             KeyCode::Right => {
-                self.expand_node();
+                // If on a node with children, expand it
+                if let Some(selected) = self.selected_node {
+                    if let Some(node) = self.plan_tree.nodes.get(selected) {
+                        if !node.children.is_empty() {
+                            self.expand_node();
+                            return true;
+                        }
+                    }
+                }
+                // If no children or no selection, move right to child if possible
+                if let Some(selected) = self.selected_node {
+                    if let Some(node) = self.plan_tree.nodes.get(selected) {
+                        if !node.children.is_empty() {
+                            self.selected_node = Some(node.children[0]);
+                            return true;
+                        }
+                    }
+                }
                 true
             }
             KeyCode::Left => {
@@ -418,33 +446,127 @@ impl App {
             return;
         }
 
-        match self.selected_node {
-            Some(selected) => {
-                let new_index =
-                    (selected as i32 + delta).max(0) as usize % self.plan_tree.nodes.len();
-                self.selected_node = Some(new_index);
-            }
-            None if !self.plan_tree.nodes.is_empty() => {
+        // Get the list of visible nodes (using a dummy ExecutionPlan since we don't need it for navigation)
+        let dummy_plan = ExecutionPlan {
+            root: PlanNode {
+                node_type: "".to_string(),
+                relation_name: None,
+                alias: None,
+                startup_cost: 0.0,
+                total_cost: 0.0,
+                actual_time: 0.0,
+                actual_rows: 0,
+                actual_loops: 0,
+                plans: vec![],
+                extra: serde_json::Value::Object(serde_json::Map::new()),
+            },
+            planning_time: 0.0,
+            execution_time: 0.0,
+        };
+
+        let visible_nodes = collect_visible_nodes(
+            &dummy_plan, // Not actually used in collect_visible_nodes for navigation
+            &self.plan_tree,
+            &self.plan_tree.root_indices,
+            0,
+            self.selected_node,
+            self.scroll_offset,
+        );
+
+        if visible_nodes.is_empty() {
+            // If nothing is selected, select the first node
+            if !self.plan_tree.nodes.is_empty() {
                 self.selected_node = Some(0);
             }
-            _ => {}
+            return;
+        }
+
+        // If nothing is selected, select the first visible node
+        if self.selected_node.is_none() && !visible_nodes.is_empty() {
+            self.selected_node = Some(visible_nodes[0].0);
+            return;
+        }
+
+        // Find the current selection in the visible nodes
+        let current_pos = match self.selected_node {
+            Some(selected) => visible_nodes
+                .iter()
+                .position(|(idx, _, _, _, _, _)| *idx == selected)
+                .unwrap_or(0),
+            None => 0,
+        };
+
+        // Calculate the new position, ensuring it's within bounds
+        let new_pos = if delta > 0 {
+            // If moving down and at the last node, don't move
+            if current_pos >= visible_nodes.len().saturating_sub(1) {
+                return;
+            }
+            current_pos
+                .saturating_add(delta as usize)
+                .min(visible_nodes.len().saturating_sub(1))
+        } else {
+            // If moving up and at the first node, don't move
+            if current_pos == 0 {
+                return;
+            }
+            current_pos.saturating_sub((-delta) as usize)
+        };
+
+        // Update the selection
+        if new_pos < visible_nodes.len() {
+            self.selected_node = Some(visible_nodes[new_pos].0);
+
+            // Ensure the selected node is visible in the viewport
+            // We'll handle scrolling in the draw function based on the selected node
         }
     }
 
     /// Expands the currently selected node in the plan tree
     fn expand_node(&mut self) {
-        if let Some(node_idx) = self.selected_node {
-            if node_idx < self.plan_tree.nodes.len() {
-                self.plan_tree.nodes[node_idx].expanded = true;
+        if self.plan.is_none() {
+            return;
+        }
+
+        if let Some(selected) = self.selected_node {
+            if let Some(node) = self.plan_tree.nodes.get_mut(selected) {
+                // Only expand if the node has children and isn't already expanded
+                if !node.children.is_empty() && !node.expanded {
+                    node.expanded = true;
+
+                    // If this is the first child being expanded, auto-select the first child
+                    if !node.children.is_empty() {
+                        self.selected_node = Some(node.children[0]);
+                    }
+                } else if node.expanded && !node.children.is_empty() {
+                    // If already expanded, move to first child
+                    self.selected_node = Some(node.children[0]);
+                }
+            }
+        } else if !self.plan_tree.root_indices.is_empty() {
+            // If nothing is selected, select and expand the first root node
+            self.selected_node = Some(self.plan_tree.root_indices[0]);
+            if let Some(node) = self.plan_tree.nodes.get_mut(self.plan_tree.root_indices[0]) {
+                if !node.children.is_empty() {
+                    node.expanded = true;
+                    // Select the first child
+                    self.selected_node = Some(node.children[0]);
+                }
             }
         }
     }
 
     /// Collapses the currently selected node in the plan tree
     fn collapse_node(&mut self) {
-        if let Some(node_idx) = self.selected_node {
-            if node_idx < self.plan_tree.nodes.len() {
-                self.plan_tree.nodes[node_idx].expanded = false;
+        if let Some(selected) = self.selected_node {
+            if let Some(node) = self.plan_tree.nodes.get_mut(selected) {
+                // Only collapse if the node is expanded
+                if node.expanded {
+                    node.expanded = false;
+                } else if let Some(parent_idx) = self.find_parent(selected) {
+                    // If already collapsed, move to parent
+                    self.selected_node = Some(parent_idx);
+                }
             }
         }
     }
@@ -455,8 +577,36 @@ impl App {
             if node_idx < self.plan_tree.nodes.len() {
                 let node = &mut self.plan_tree.nodes[node_idx];
                 node.expanded = !node.expanded;
+
+                // If expanding, select the first child if there are any
+                if node.expanded && !node.children.is_empty() {
+                    self.selected_node = Some(node.children[0]);
+                }
             }
         }
+    }
+
+    /// Finds the parent of a node in the plan tree
+    ///
+    /// # Arguments
+    /// * `node_idx` - The index of the node to find the parent of
+    ///
+    /// # Returns
+    /// The index of the parent node, or None if not found
+    fn find_parent(&self, node_idx: usize) -> Option<usize> {
+        // Check if this is a root node
+        if self.plan_tree.root_indices.contains(&node_idx) {
+            return None;
+        }
+
+        // Search through all nodes to find one that has node_idx as a child
+        for (i, node) in self.plan_tree.nodes.iter().enumerate() {
+            if node.children.contains(&node_idx) {
+                return Some(i);
+            }
+        }
+
+        None
     }
 }
 
