@@ -26,9 +26,13 @@ pub struct PlanNode {
     #[serde(rename = "Total Cost")]
     pub total_cost: f64,
 
-    /// Actual time spent in this node (in milliseconds)
+    /// Actual startup time in milliseconds
+    #[serde(rename = "Actual Startup Time")]
+    pub actual_startup_time: Option<f64>,
+
+    /// Actual total time in milliseconds
     #[serde(rename = "Actual Total Time")]
-    pub actual_time: f64,
+    pub actual_total_time: f64,
 
     /// Actual number of rows returned by this node
     #[serde(rename = "Actual Rows")]
@@ -39,7 +43,7 @@ pub struct PlanNode {
     pub actual_loops: u64,
 
     /// Child nodes in the execution plan
-    #[serde(default)]
+    #[serde(default, rename = "Plans")]
     pub plans: Vec<PlanNode>,
 
     /// Additional node-specific output
@@ -53,13 +57,13 @@ impl PlanNode {
     /// Returns a `Duration` representing the time spent in this node.
     /// The duration is in milliseconds, matching PostgreSQL's EXPLAIN ANALYZE output.
     pub fn actual_duration(&self) -> Duration {
-        Duration::from_millis(self.actual_time as u64)
+        Duration::from_millis((self.actual_total_time * self.actual_loops as f64) as u64)
     }
 }
 
-/// Represents the top-level structure of a PostgreSQL EXPLAIN output
+/// Represents a single plan in the PostgreSQL EXPLAIN output
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExplainOutput {
+pub struct ExplainPlan {
     /// The execution plan
     #[serde(rename = "Plan")]
     pub plan: PlanNode,
@@ -72,10 +76,17 @@ pub struct ExplainOutput {
     #[serde(rename = "Execution Time")]
     pub execution_time: f64,
 
+    /// Planning statistics
+    #[serde(rename = "Planning")]
+    pub planning_stats: Option<serde_json::Value>,
+
     /// Additional fields we might want to capture
     #[serde(flatten)]
     pub extra: serde_json::Value,
 }
+
+/// Represents the top-level structure of a PostgreSQL EXPLAIN output
+pub type ExplainOutput = Vec<ExplainPlan>;
 
 /// Represents a complete execution plan
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -43,14 +43,26 @@ fn render_plan_node(
     level: usize,
 ) -> Text<'static> {
     let indent = "  ".repeat(level);
+
+    // Create the prefix (▶ or ▼) based on whether the node has children and is expanded
     let prefix = if has_children {
         if is_expanded {
-            "[-] "
+            Span::styled(
+                "▼ ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
         } else {
-            "[+] "
+            Span::styled(
+                "▶ ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
         }
     } else {
-        "    "
+        Span::raw("  ")
     };
 
     // Node type with color coding
@@ -70,23 +82,27 @@ fn render_plan_node(
         node.startup_cost,
         node.total_cost,
         node.actual_rows,
-        node.actual_time,
+        node.actual_total_time,
         if !relation_info.is_empty() { " " } else { "" },
         relation_info
     );
 
     // Create the main line of the node
-    let mut text = Text::from(vec![Line::from(vec![
-        Span::raw(indent),
-        Span::raw(prefix),
-        Span::styled(
-            node_type,
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(details, Style::default().fg(Color::Gray)),
-    ])]);
+    let mut text = Text::from(vec![Line::from(
+        vec![
+            Span::raw(indent),
+            prefix,
+            Span::styled(
+                node_type,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(details, Style::default().fg(Color::Gray)),
+        ]
+        .into_iter()
+        .collect::<Vec<Span>>(),
+    )]);
 
     // Add additional details if expanded
     if is_expanded {
@@ -94,7 +110,10 @@ fn render_plan_node(
         let mut extra_info = vec![
             format!("Actual Rows: {}", node.actual_rows),
             format!("Actual Loops: {}", node.actual_loops),
-            format!("Actual Time: {:.2}ms", node.actual_time),
+            format!("Actual Total Time: {:.2}ms", node.actual_total_time),
+            node.actual_startup_time
+                .map(|t| format!("Actual Startup Time: {:.2}ms", t))
+                .unwrap_or_else(|| "Actual Startup Time: N/A".to_string()),
             format!("Startup Cost: {:.2}", node.startup_cost),
             format!("Total Cost: {:.2}", node.total_cost),
         ];
@@ -214,7 +233,8 @@ impl Default for PlanNodeUI {
                 alias: None,
                 startup_cost: 0.0,
                 total_cost: 0.0,
-                actual_time: 0.0,
+                actual_startup_time: None,
+                actual_total_time: 0.0,
                 actual_rows: 0,
                 actual_loops: 0,
                 plans: Vec::new(),
@@ -240,9 +260,9 @@ fn plan_hash(plan: &serde_json::Value) -> u64 {
 /// along with metadata needed for efficient rendering and interaction.
 #[derive(Debug, Default)]
 pub struct PlanTree {
-    /// All nodes in the tree, stored in a flat structure
+    /// All nodes in the tree
     pub nodes: Vec<PlanNodeUI>,
-    /// Indices of root nodes in the nodes vector
+    /// Indices of the root nodes in the tree
     pub root_indices: Vec<usize>,
     /// Hash of the last processed plan for change detection
     pub last_plan_hash: Option<u64>,
@@ -259,6 +279,8 @@ pub struct App {
     pub query: String,
     /// The current execution plan as raw JSON
     pub plan: Option<serde_json::Value>,
+    /// The parsed execution plan
+    pub exec_plan: Option<ExecutionPlan>,
     /// The UI representation of the execution plan
     pub plan_tree: PlanTree,
     /// Index of the currently selected node in the plan tree
@@ -295,6 +317,7 @@ impl Default for App {
             should_quit: false,
             query: String::new(),
             plan: None,
+            exec_plan: None,
             plan_tree: PlanTree::default(),
             selected_node: None,
             scroll_offset: 0,
@@ -446,6 +469,12 @@ impl App {
             return;
         }
 
+        // If no node is selected, select the first root node
+        if self.selected_node.is_none() && !self.plan_tree.root_indices.is_empty() {
+            self.selected_node = Some(self.plan_tree.root_indices[0]);
+            return;
+        }
+
         // Get the list of visible nodes (using a dummy ExecutionPlan since we don't need it for navigation)
         let dummy_plan = ExecutionPlan {
             root: PlanNode {
@@ -454,7 +483,8 @@ impl App {
                 alias: None,
                 startup_cost: 0.0,
                 total_cost: 0.0,
-                actual_time: 0.0,
+                actual_startup_time: None,
+                actual_total_time: 0.0,
                 actual_rows: 0,
                 actual_loops: 0,
                 plans: vec![],
@@ -464,8 +494,9 @@ impl App {
             execution_time: 0.0,
         };
 
+        // Get all visible nodes in the tree
         let visible_nodes = collect_visible_nodes(
-            &dummy_plan, // Not actually used in collect_visible_nodes for navigation
+            &dummy_plan,
             &self.plan_tree,
             &self.plan_tree.root_indices,
             0,
@@ -474,16 +505,6 @@ impl App {
         );
 
         if visible_nodes.is_empty() {
-            // If nothing is selected, select the first node
-            if !self.plan_tree.nodes.is_empty() {
-                self.selected_node = Some(0);
-            }
-            return;
-        }
-
-        // If nothing is selected, select the first visible node
-        if self.selected_node.is_none() && !visible_nodes.is_empty() {
-            self.selected_node = Some(visible_nodes[0].0);
             return;
         }
 
@@ -496,21 +517,19 @@ impl App {
             None => 0,
         };
 
-        // Calculate the new position, ensuring it's within bounds
+        // Calculate the new position based on direction
         let new_pos = if delta > 0 {
-            // If moving down and at the last node, don't move
+            // Moving down
             if current_pos >= visible_nodes.len().saturating_sub(1) {
-                return;
+                return; // Already at the bottom
             }
-            current_pos
-                .saturating_add(delta as usize)
-                .min(visible_nodes.len().saturating_sub(1))
+            current_pos + 1
         } else {
-            // If moving up and at the first node, don't move
+            // Moving up
             if current_pos == 0 {
-                return;
+                return; // Already at the top
             }
-            current_pos.saturating_sub((-delta) as usize)
+            current_pos - 1
         };
 
         // Update the selection
@@ -518,7 +537,7 @@ impl App {
             self.selected_node = Some(visible_nodes[new_pos].0);
 
             // Ensure the selected node is visible in the viewport
-            // We'll handle scrolling in the draw function based on the selected node
+            // The draw function will handle scrolling based on the selected node
         }
     }
 
@@ -621,33 +640,27 @@ fn collect_visible_nodes(
 ) -> Vec<(usize, PlanNode, bool, bool, usize, bool)> {
     let mut result = Vec::new();
 
-    // Process each UI node index
     for &node_idx in node_indices {
         // Check if the node index is valid
         if node_idx >= tree_ui.nodes.len() {
-            println!(
-                "DEBUG - Invalid node index: {} (nodes length: {})",
-                node_idx,
-                tree_ui.nodes.len()
-            );
             continue;
         }
 
         let node_ui = &tree_ui.nodes[node_idx];
         let is_selected = Some(node_idx) == selected_node;
+        let has_children = !node_ui.children.is_empty();
 
-        // Add the current node to the result with its plan node
         result.push((
             node_idx,
             node_ui.plan_node.clone(), // Use the plan node stored in the UI node
             is_selected,
             node_ui.expanded,
             level,
-            !node_ui.children.is_empty(),
+            has_children,
         ));
 
         // If this node has children and is expanded, process them
-        if node_ui.expanded && !node_ui.children.is_empty() {
+        if node_ui.expanded && has_children {
             // Recursively process children
             let children = collect_visible_nodes(
                 _plan,
@@ -660,6 +673,11 @@ fn collect_visible_nodes(
 
             // Add the children to the result
             result.extend(children);
+        } else if has_children {
+            println!(
+                "    - Node has {} children but is not expanded",
+                node_ui.children.len()
+            );
         }
     }
 
@@ -726,33 +744,139 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     // If we have a plan, render it
     if let Some(plan) = &app.plan {
-        let exec_plan = match serde_json::from_value::<ExecutionPlan>(plan.clone()) {
-            Ok(plan) => Some(plan),
-            Err(e) => {
-                eprintln!("Error parsing execution plan: {}", e);
-                None
-            }
-        };
+        // Only parse the plan if we haven't already done so
+        if app.exec_plan.is_none() {
+            // Try to handle both array and object formats
+            let plan_item = if let Some(plan_array) = plan.as_array() {
+                if let Some(first_item) = plan_array.first() {
+                    first_item
+                } else {
+                    // Handle empty plan array
+                    let error_msg = Paragraph::new("Empty execution plan received from database")
+                        .style(Style::default().fg(Color::Red))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("Error")
+                                .style(Style::default().fg(Color::Red)),
+                        )
+                        .wrap(Wrap { trim: true });
+                    f.render_widget(error_msg, plan_area);
+                    return;
+                }
+            } else if plan.is_object() {
+                // Handle case where plan is a single object
+                plan
+            } else {
+                // Handle unknown format
+                let error_msg = Paragraph::new(format!(
+                    "Unexpected plan format. Expected an array or object, got: {}",
+                    plan
+                ))
+                .style(Style::default().fg(Color::Red))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Error")
+                        .style(Style::default().fg(Color::Red)),
+                )
+                .wrap(Wrap { trim: true });
+                f.render_widget(error_msg, plan_area);
+                return;
+            };
 
-        if let Some(exec_plan) = &exec_plan {
-            // Check if there was an error in the plan
-            if let Some(error) = plan.get("error").and_then(|e| e.as_str()) {
-                let error_msg = Paragraph::new(format!("Error executing query:\n{}", error))
+            // Extract the Plan field which contains the root node
+            if let Some(plan_obj) = plan_item.get("Plan") {
+                let planning_time = plan_item
+                    .get("Planning Time")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
+                let execution_time = plan_item
+                    .get("Execution Time")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
+                // Parse the plan node
+                match serde_json::from_value::<PlanNode>(plan_obj.clone()) {
+                    Ok(root) => {
+                        app.exec_plan = Some(ExecutionPlan {
+                            root,
+                            planning_time,
+                            execution_time,
+                        });
+                    }
+                    Err(e) => {
+                        // Log the error and the plan for debugging
+                        eprintln!("Error parsing plan node: {}", e);
+                        eprintln!("Plan object: {:#?}", plan_obj);
+
+                        let error_msg = Paragraph::new(format!(
+                            "Error parsing execution plan: {}\n\nThis may be due to an unsupported PostgreSQL version or plan format.",
+                            e
+                        ))
+                        .style(Style::default().fg(Color::Red))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("Error")
+                                .style(Style::default().fg(Color::Red)),
+                        )
+                        .wrap(Wrap { trim: true });
+                        f.render_widget(error_msg, plan_area);
+                        return;
+                    }
+                }
+            } else if let Some(error_msg) = plan_item.get("error") {
+                // Handle error message from PostgreSQL
+                let error_msg = Paragraph::new(format!("Database error: {}", error_msg))
                     .style(Style::default().fg(Color::Red))
                     .block(
                         Block::default()
                             .borders(Borders::ALL)
                             .title("Error")
-                            .border_style(Style::default().fg(Color::Red)),
-                    );
+                            .style(Style::default().fg(Color::Red)),
+                    )
+                    .wrap(Wrap { trim: true });
+                f.render_widget(error_msg, plan_area);
+                return;
+            } else {
+                // Handle case where plan format is not recognized
+                let error_msg = Paragraph::new(format!(
+                    "Unrecognized plan format. Expected a 'Plan' field in: {}",
+                    plan_item
+                ))
+                .style(Style::default().fg(Color::Red))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Error")
+                        .style(Style::default().fg(Color::Red)),
+                )
+                .wrap(Wrap { trim: true });
                 f.render_widget(error_msg, plan_area);
                 return;
             }
+        }
+
+        // If we have a parsed execution plan, render it
+        if let Some(exec_plan) = &app.exec_plan {
             // Clear existing tree
             app.plan_tree = PlanTree::default();
 
             // Build new tree with the root node
             build_plan_tree_ui(&exec_plan.root, &mut app.plan_tree, 0, None);
+
+            // Debug: Print the built tree structure
+            println!("\n=== BUILT TREE STRUCTURE ===");
+            println!("Number of nodes: {}", app.plan_tree.nodes.len());
+            println!("Root indices: {:?}", app.plan_tree.root_indices);
+            for (i, node) in app.plan_tree.nodes.iter().enumerate() {
+                println!(
+                    "Node {}: type={}, expanded={}, children={:?}",
+                    i, node.plan_node.node_type, node.expanded, node.children
+                );
+            }
 
             // Store hash of the current plan to detect changes
             app.plan_tree.last_plan_hash = Some(plan_hash(plan));
@@ -773,13 +897,31 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 app.scroll_offset,
             );
 
+            // Debug: Print the visible nodes and their properties
+            println!("\n=== VISIBLE NODES ({} total) ===", visible_nodes.len());
+            for (i, (node_idx, node, is_selected, is_expanded, level, has_children)) in
+                visible_nodes.iter().enumerate()
+            {
+                println!(
+                    "[{}] idx={}, type={}, selected={}, expanded={}, level={}, has_children={}",
+                    i, node_idx, node.node_type, is_selected, is_expanded, level, has_children
+                );
+            }
+
             let items: Vec<ListItem> = visible_nodes
                 .into_iter()
-                .map(|(_, node, is_selected, is_expanded, level, has_children)| {
-                    let text =
-                        render_plan_node(&node, is_selected, is_expanded, has_children, level);
-                    ListItem::new(text)
-                })
+                .map(
+                    |(_node_idx, node, is_selected, is_expanded, level, has_children)| {
+                        // Debug: Print the node being rendered and its has_children flag
+                        println!(
+                            "Rendering node: type={}, has_children={}, expanded={}",
+                            node.node_type, has_children, is_expanded
+                        );
+                        let text =
+                            render_plan_node(&node, is_selected, is_expanded, has_children, level);
+                        ListItem::new(text)
+                    },
+                )
                 .collect();
 
             // Create and render the list

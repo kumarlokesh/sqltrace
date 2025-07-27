@@ -32,7 +32,7 @@ pub enum DbError {
 
     /// Error occurred while parsing an execution plan
     #[error("Execution plan error: {0}")]
-    PlanParsing(String),
+    PlanError(String),
 
     /// The provided SQL query is invalid
     #[error("Invalid query: {0}")]
@@ -43,13 +43,14 @@ impl From<SqlxError> for DbError {
     /// Converts a SQLx error into a database error
     fn from(err: SqlxError) -> Self {
         match err {
-            SqlxError::PoolTimedOut | SqlxError::PoolClosed => {
-                DbError::Connection("Database pool error".to_string())
-            }
+            SqlxError::Io(io_err) => DbError::Io(io_err),
+            SqlxError::Configuration(config_err) => DbError::Config(config_err.to_string()),
             _ => DbError::Query(err.to_string()),
         }
     }
 }
+
+// The From<serde_json::Error> is automatically derived by thiserror's #[error("...")] attribute
 
 /// Convenience type for Results that use DbError
 ///
