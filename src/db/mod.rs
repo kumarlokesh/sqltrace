@@ -13,7 +13,7 @@ use sqlx::{Pool, Postgres, Row};
 use std::time::Duration;
 
 use crate::db::error::DbError;
-use crate::db::models::plan::{ExecutionPlan, ExplainOutput};
+use crate::db::models::plan::{ExecutionPlan, ExplainPlan, PlanNode};
 use crate::error::{Result, SqlTraceError};
 
 /// Database connection manager
@@ -76,15 +76,46 @@ impl Database {
             );
         }
 
-        // Parse the JSON into our ExplainOutput (which is a Vec<ExplainPlan>)
-        let explain_outputs: ExplainOutput = serde_json::from_value(plan_json)
-            .map_err(|e| DbError::PlanError(format!("Failed to parse plan JSON: {}", e)))?;
+        // First, try to parse as an array of plans (the common case)
+        let explain_plan = if let Ok(mut explain_outputs) =
+            serde_json::from_value::<Vec<ExplainPlan>>(plan_json.clone())
+        {
+            explain_outputs
+                .into_iter()
+                .next()
+                .ok_or_else(|| DbError::PlanError("Empty plan array".to_string()))?
+        }
+        // If that fails, try to parse as a single plan object (shouldn't happen with current PostgreSQL versions)
+        else if let Ok(explain_plan) = serde_json::from_value::<ExplainPlan>(plan_json.clone()) {
+            explain_plan
+        }
+        // If both fail, try to parse the plan field directly (for backward compatibility)
+        else if let Some(plan_obj) = plan_json.get("Plan").and_then(|p| p.as_object()) {
+            let plan =
+                serde_json::from_value::<PlanNode>(serde_json::Value::Object(plan_obj.clone()))
+                    .map_err(|e| DbError::PlanError(format!("Failed to parse plan: {}", e)))?;
 
-        // We expect exactly one plan in the output
-        let explain_plan = explain_outputs
-            .into_iter()
-            .next()
-            .ok_or_else(|| DbError::PlanError("No execution plan returned".to_string()))?;
+            ExplainPlan {
+                plan,
+                planning_time: plan_json
+                    .get("Planning Time")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
+                execution_time: plan_json
+                    .get("Execution Time")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
+            }
+        }
+        // If all else fails, return a descriptive error with the actual JSON for debugging
+        else {
+            let json_str = serde_json::to_string_pretty(&plan_json)
+                .unwrap_or_else(|_| "<invalid JSON>".to_string());
+            return Err(DbError::PlanError(format!(
+                "Failed to parse execution plan. Expected format: [{{Plan: ..., 'Planning Time': ..., 'Execution Time': ...}}]. Got: {}",
+                json_str
+            )).into());
+        };
 
         // Convert to our internal ExecutionPlan format
         Ok(ExecutionPlan {

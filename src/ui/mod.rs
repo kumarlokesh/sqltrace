@@ -612,7 +612,7 @@ impl App {
     ///
     /// # Returns
     /// The index of the parent node, or None if not found
-    fn find_parent(&self, node_idx: usize) -> Option<usize> {
+    pub fn find_parent(&self, node_idx: usize) -> Option<usize> {
         // Check if this is a root node
         if self.plan_tree.root_indices.contains(&node_idx) {
             return None;
@@ -630,7 +630,7 @@ impl App {
 }
 
 // / Recursively traverses the plan tree to collect visible nodes for rendering
-fn collect_visible_nodes(
+pub(crate) fn collect_visible_nodes(
     _plan: &ExecutionPlan, // No longer needed as we have plan nodes in UI nodes
     tree_ui: &PlanTree,
     node_indices: &[usize],

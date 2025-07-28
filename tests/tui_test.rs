@@ -9,7 +9,10 @@ use crossterm::{
 use ratatui::backend::CrosstermBackend;
 use std::io;
 
-use sqltrace_rs::{db::Database, ui::App};
+use sqltrace_rs::{
+    db::Database,
+    ui::{self, App, PlanTree},
+};
 
 /// Helper function to create a test terminal
 fn setup_terminal() -> Result<ratatui::Terminal<CrosstermBackend<io::Stdout>>> {
@@ -82,6 +85,7 @@ async fn test_tui_update_after_query() -> Result<()> {
     Ok(())
 }
 
+/// Test that verifies the plan tree is built and rendered correctly
 #[tokio::test]
 async fn test_plan_tree_building() -> Result<()> {
     // Skip this test in CI environment as it requires a terminal
@@ -93,8 +97,8 @@ async fn test_plan_tree_building() -> Result<()> {
     let test_db_url = "postgresql://postgres:postgres@localhost:5432/sqltrace_test";
     let db = Database::new(test_db_url).await?;
 
-    // Execute a query
-    let test_query = "SELECT * FROM users";
+    // Execute a query with a known structure
+    let test_query = "SELECT * FROM users WHERE id IN (1, 2)";
     let result = db.explain(test_query).await;
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
 
@@ -105,12 +109,73 @@ async fn test_plan_tree_building() -> Result<()> {
     let exec_plan = result?;
     app.plan = Some(serde_json::to_value(&exec_plan)?);
 
-    // Simulate the UI update that would happen after setting the plan
-    // This will trigger the plan tree to be built through the normal UI flow
-    app.selected_node = Some(0);
+    // Verify the execution plan has the expected structure
+    assert!(
+        exec_plan.planning_time >= 0.0,
+        "Planning time should be non-negative"
+    );
+    assert!(
+        exec_plan.execution_time >= 0.0,
+        "Execution time should be non-negative"
+    );
+    assert!(
+        !exec_plan.root.node_type.is_empty(),
+        "Root node should have a type"
+    );
 
-    // Force a UI update to ensure the plan tree is built
-    app.on_tick();
+    // Manually build the plan tree UI
+    let mut plan_tree = PlanTree::default();
+    let _ = ui::build_plan_tree_ui(&exec_plan.root, &mut plan_tree, 0, None);
+    app.plan_tree = plan_tree;
+
+    // Set the first node as selected
+    if !app.plan_tree.root_indices.is_empty() {
+        app.selected_node = Some(app.plan_tree.root_indices[0]);
+    }
+
+    // Verify the plan tree was built correctly
+    assert!(
+        !app.plan_tree.nodes.is_empty(),
+        "Plan tree should not be empty"
+    );
+
+    // Check if the root node was added to the tree
+    let root_node = app.plan_tree.nodes.first().expect("Root node should exist");
+    assert!(
+        !root_node.plan_node.node_type.is_empty(),
+        "Root node should have a type"
+    );
+
+    // If the plan has child nodes, verify they're properly connected
+    if !exec_plan.root.plans.is_empty() {
+        assert!(
+            !root_node.children.is_empty(),
+            "Root node should have children"
+        );
+
+        // Verify the first child exists and has the correct parent
+        let first_child_idx = *root_node
+            .children
+            .first()
+            .expect("First child should exist");
+        let parent_idx = app.find_parent(first_child_idx);
+        assert_eq!(
+            parent_idx,
+            Some(0),
+            "First child should have root as parent"
+        );
+    }
+
+    // Test rendering the plan tree
+    let mut terminal = setup_terminal()?;
+
+    // Create a frame and render the app
+    terminal.draw(|f| {
+        ui::draw(f, &mut app);
+    })?;
+
+    // Clean up
+    cleanup_terminal(terminal)?;
 
     // If the plan tree is still empty, try to build it manually using the plan value
     if app.plan_tree.nodes.is_empty() {

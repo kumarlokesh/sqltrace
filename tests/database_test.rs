@@ -85,6 +85,68 @@ async fn test_validate_query_rejects_non_select() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn test_parse_plan_json_structure() -> anyhow::Result<()> {
+    // This test verifies that we can parse the plan JSON structure correctly
+    // It uses a static JSON string that matches what we expect from PostgreSQL
+    let plan_json = r#"
+    [
+        {
+            "Execution Time": 0.117,
+            "Plan": {
+                "Node Type": "Sort",
+                "Startup Cost": 0.0,
+                "Total Cost": 0.0,
+                "Plan Rows": 2,
+                "Actual Rows": 2,
+                "Actual Loops": 1,
+                "Actual Startup Time": 0.0,
+                "Actual Total Time": 0.0,
+                "Plans": [
+                    {
+                        "Node Type": "Seq Scan",
+                        "Relation Name": "users",
+                        "Alias": "u",
+                        "Startup Cost": 0.0,
+                        "Total Cost": 0.0,
+                        "Plan Rows": 2,
+                        "Plan Width": 68,
+                        "Actual Rows": 2,
+                        "Actual Loops": 1,
+                        "Actual Startup Time": 0.0,
+                        "Actual Total Time": 0.0
+                    }
+                ]
+            },
+            "Planning Time": 0.723
+        }
+    ]"#;
+
+    // Parse the JSON into a serde_json::Value
+    let plan_value: serde_json::Value =
+        serde_json::from_str(plan_json).expect("Failed to parse test plan JSON");
+
+    // Try to parse as a Vec<ExplainPlan>
+    let explain_plans: Vec<sqltrace_rs::db::models::plan::ExplainPlan> =
+        serde_json::from_value(plan_value).expect("Failed to parse plan as Vec<ExplainPlan>");
+
+    assert!(!explain_plans.is_empty(), "Expected at least one plan");
+    assert_eq!(
+        explain_plans[0].plan.node_type, "Sort",
+        "Expected Sort node at root"
+    );
+    assert!(
+        !explain_plans[0].plan.plans.is_empty(),
+        "Expected at least one child plan"
+    );
+    assert_eq!(
+        explain_plans[0].plan.plans[0].node_type, "Seq Scan",
+        "Expected Seq Scan as child"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_explain_with_complex_query() -> anyhow::Result<()> {
     with_test_database(|pool| async move {
         let db = Database::from_pool(pool);

@@ -75,14 +75,6 @@ pub struct ExplainPlan {
     /// Execution time in milliseconds
     #[serde(rename = "Execution Time")]
     pub execution_time: f64,
-
-    /// Planning statistics
-    #[serde(rename = "Planning")]
-    pub planning_stats: Option<serde_json::Value>,
-
-    /// Additional fields we might want to capture
-    #[serde(flatten)]
-    pub extra: serde_json::Value,
 }
 
 /// Represents the top-level structure of a PostgreSQL EXPLAIN output
