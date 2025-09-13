@@ -2,7 +2,7 @@
 
 ## Overview
 
-SQLTrace is designed as a modular, extensible terminal-based SQL query analyzer with the following primary goals:
+SQLTrace is designed as a modular, extensible web-based SQL query analyzer with the following primary goals:
 
 1. **Performance**: Fast and responsive even with large execution plans
 2. **Extensibility**: Support for multiple database backends
@@ -14,7 +14,7 @@ SQLTrace is designed as a modular, extensible terminal-based SQL query analyzer 
 ```mermaid
 graph TD
     subgraph Application
-        A[CLI Interface] --> B[Core]
+        A[Web Interface] --> B[Core]
         B --> C[Database Adapters]
         B --> D[Plan Processors]
         B --> E[Visualization Engine]
@@ -32,7 +32,7 @@ graph TD
 
 ## Core Components
 
-### 1. CLI Interface
+### 1. Web Interface
 
 - **Responsibility**: Handle command-line arguments and user input
 - **Key Features**:
@@ -60,7 +60,7 @@ graph TD
 
 ### 4. Visualization Engine
 
-- **Responsibility**: Render execution plans in the terminal
+- **Responsibility**: Render execution plans in the web interface
 - **Key Features**:
   - Tree-based plan visualization
   - Color-coded performance indicators
@@ -76,9 +76,9 @@ graph TD
   - Index suggestion
   - Query rewriting recommendations
 
-### 6. TUI Renderer
+### 6. Web Renderer
 
-- **Responsibility**: Handle terminal UI rendering and interaction
+- **Responsibility**: Handle web UI rendering and interaction
 - **Key Features**:
   - Responsive layout
   - Keyboard navigation
@@ -88,9 +88,9 @@ graph TD
 ## Data Flow
 
 1. **Initialization**:
-   - Parse CLI arguments
+   - Parse web arguments
    - Initialize database connection
-   - Set up TUI
+   - Set up web interface
 
 2. **Query Execution**:
    - User submits query
@@ -103,7 +103,7 @@ graph TD
    - Generate optimization suggestions
 
 4. **Rendering**:
-   - Update TUI with plan visualization
+   - Update web interface with plan visualization
    - Display performance metrics
    - Show optimization suggestions
 
@@ -111,7 +111,7 @@ graph TD
 
 - **Database Errors**: Connection issues, query syntax errors
 - **Plan Parsing**: Malformed plan output
-- **TUI**: Terminal compatibility issues
+- **Web Renderer**: Terminal compatibility issues
 - **Validation**: Invalid configuration or input
 
 ## Performance Considerations

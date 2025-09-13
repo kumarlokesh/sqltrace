@@ -4,16 +4,17 @@
 [![Build Status](https://github.com/kumarlokesh/sqltrace-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/kumarlokesh/sqltrace-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/sqltrace-rs.svg)](https://crates.io/crates/sqltrace-rs)
 
-A high-performance, terminal-based SQL query visualizer and advisor that helps developers understand and optimize their database queries.
+A high-performance, web-based SQL query visualizer and advisor that helps developers understand and optimize their database queries.
 
 ## ✨ Features
 
-- **Interactive TUI** for exploring query execution plans with keyboard navigation
+- **Interactive Web UI** for exploring query execution plans with mouse and keyboard
 - **PostgreSQL Support** with full EXPLAIN ANALYZE visualization
-- **Plan Visualization** with collapsible nodes and detailed execution metrics
-- **Query Execution** directly from the TUI or command line
-- **Lightweight & Fast** built with Rust for maximum performance
-- **Cross-platform** works anywhere Rust and PostgreSQL are supported
+- **Plan Visualization** with expandable/collapsible nodes and detailed execution metrics
+- **Real-time Query Execution** via REST API endpoints
+- **Modern Web Interface** with responsive design for desktop and mobile
+- **Lightweight & Fast** built with Rust backend for maximum performance
+- **Cross-platform** works anywhere you can run a web browser
 
 ## 🚀 Getting Started
 
@@ -23,7 +24,7 @@ A high-performance, terminal-based SQL query visualizer and advisor that helps d
 - [PostgreSQL](https://www.postgresql.org/download/) (for running tests)
 - [just](https://github.com/casey/just) (optional, for running development tasks)
 
-## 🧪 Testing
+## Testing
 
 ### Prerequisites
 
@@ -90,11 +91,6 @@ cargo test -- --test-threads=1
 3. Run lints: `just lint`
 4. Format code: `cargo fmt`
 
-## 🛠 Development
-
-- Rust (latest stable version)
-- PostgreSQL (for the initial version)
-
 ### Installation
 
 ```bash
@@ -104,31 +100,33 @@ cargo install sqltrace-rs
 # Or build from source
 git clone https://github.com/kumarlokesh/sqltrace-rs.git
 cd sqltrace-rs
-cargo install --path .
+cargo build --release
 ```
 
 ### Basic Usage
 
 ```bash
-# Connect to a PostgreSQL database and start the interactive TUI
-sqltrace-rs postgres://user:password@localhost:5432/dbname
+# Start the web server (default port 3000)
+sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname
 
-# Or analyze a specific query directly
-sqltrace-rs postgres://user:password@localhost:5432/dbname --query "SELECT * FROM users WHERE id = 1"
+# Use custom host and port
+sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname --port 8080 --host 0.0.0.0
 
 # Run with debug logging (for troubleshooting)
-RUST_LOG=debug sqltrace-rs postgres://user:password@localhost:5432/dbname
+RUST_LOG=debug sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname
 ```
 
-### TUI Controls
+Then open your web browser and navigate to `http://localhost:3000` to access the interactive query visualizer.
 
-- **↑/↓**: Navigate between plan nodes
-- **→/←**: Expand/collapse nodes
-- **Enter**: Execute a new query
-- **q**: Quit the application
-- **?**: Show help (key bindings)
+### Web Interface
 
-## 🛠 Troubleshooting
+- **Query Editor**: Write and edit SQL queries with syntax highlighting
+- **Execute Button**: Analyze your query and generate execution plan visualization
+- **Interactive Plan Tree**: Click to expand/collapse nodes in the execution plan
+- **Detailed Metrics**: View cost, timing, and row information for each operation
+- **Error Handling**: Clear error messages for invalid queries or connection issues
+
+## Troubleshooting
 
 ### Common Issues
 
@@ -145,50 +143,59 @@ RUST_LOG=debug sqltrace-rs postgres://user:password@localhost:5432/dbname
   GRANT pg_read_all_stats TO your_username;
   ```
 
+- **Web Server Issues**: Check if the port is already in use
+
+  ```bash
+  # Check what's using port 3000
+  lsof -i :3000
+  
+  # Use a different port if needed
+  sqltrace-rs --database-url postgres://... --port 8080
+  ```
+
 - **Debugging**: Enable debug logging for more information
 
   ```bash
-  RUST_LOG=debug sqltrace-rs postgres://...
+  RUST_LOG=debug sqltrace-rs --database-url postgres://...
   ```
 
-## 📝 Recent Changes
+## Recent Changes
 
 ### 0.1.0 (Unreleased)
 
-- Fixed debug output in TUI that was cluttering the interface
+- Modern, responsive web UI with interactive execution plan visualization
+- RESTful API for programmatic access to query analysis
 - Improved error handling and user feedback
-- Enhanced plan visualization with better node expansion/collapse
-- Added support for more PostgreSQL plan node types
-- Performance optimizations for large execution plans
+- Enhanced plan visualization with expandable/collapsible nodes
+- Real-time query execution and plan generation
+- Cross-platform web interface accessible from any modern browser
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 graph TD
-    A[User Input] --> B[SQL Query]
-    B --> C[Database Connection]
-    C --> D[EXPLAIN ANALYZE]
-    D --> E[Plan Processing]
-    E --> F[Visualization Engine]
-    F --> G[Terminal UI]
-    E --> H[Advisor Engine]
-    H --> G
+    A[Web Browser] --> B[HTTP Request]
+    B --> C[Axum Web Server]
+    C --> D[SQL Validation]
+    D --> E[Database Connection]
+    E --> F[EXPLAIN ANALYZE]
+    F --> G[Plan Processing]
+    G --> H[JSON Response]
+    H --> I[Web UI Visualization]
+    G --> J[Advisor Engine]
+    J --> H
 ```
 
 ### Core Components
 
-1. **Database Connector**: Handles connections to various database backends
-2. **Plan Parser**: Parses and normalizes execution plans from different databases
-3. **Visualization Engine**: Renders execution plans in the terminal
-4. **Advisor Engine**: Analyzes plans and provides optimization suggestions
-5. **TUI Interface**: Interactive terminal user interface
+1. **Web Server**: Axum-based HTTP server serving the web interface and API
+2. **Database Connector**: Handles connections to PostgreSQL databases
+3. **Plan Parser**: Parses and normalizes execution plans from PostgreSQL
+4. **REST API**: JSON endpoints for query execution and plan retrieval
+5. **Web Frontend**: Modern JavaScript interface for interactive plan visualization
+6. **Advisor Engine**: Analyzes plans and provides optimization suggestions
 
-## 📚 Documentation
-
-- [API Reference](https://docs.rs/sqltrace-rs)
-- [Contributing Guide](./CONTRIBUTING.md)
-
-## 🛣️ Roadmap
+## Roadmap
 
 ### Phase 1: MVP (PostgreSQL)
 
@@ -198,8 +205,9 @@ graph TD
   - [x] Query execution with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
   - [x] Execution plan parsing and deserialization
   - [x] Comprehensive test coverage for various query types
-- [x] Basic TUI for plan visualization
-- [x] Support for EXPLAIN ANALYZE
+- [x] Web-based UI for plan visualization  
+- [x] REST API endpoints for query execution
+- [x] Interactive plan tree with expand/collapse functionality
 
 ### Phase 2: Advisor Engine
 
@@ -219,11 +227,7 @@ graph TD
 - [ ] Plugin system for custom visualizations
 - [ ] Benchmarking tools
 
-## 🤝 Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](./CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## 📜 License
+## License
 
 This project is dual-licensed under either:
 
@@ -232,8 +236,7 @@ This project is dual-licensed under either:
 
 at your option.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Inspired by [pgAdmin](https://www.pgadmin.org/), [DBeaver](https://dbeaver.io/), and other database tools
-- Built with [Ratatui](https://github.com/ratatui-org/ratatui) for the TUI
 - Uses [SQLx](https://github.com/launchbadge/sqlx) for database access

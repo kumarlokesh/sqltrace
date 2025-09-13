@@ -92,6 +92,16 @@ pub async fn create_test_pool() -> (String, PgPool) {
     create_test_database().await
 }
 
+/// Gets a test database URL for testing
+pub fn get_test_database_url() -> String {
+    dotenv::from_filename(".env").ok();
+    dotenv::from_filename("tests/test.env").ok();
+    dotenv::dotenv().ok();
+
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/postgres".to_string())
+}
+
 /// Sets up test tables and data
 pub async fn setup_test_database(pool: &PgPool) -> sqlx::Result<()> {
     // Create test tables
