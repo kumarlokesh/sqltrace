@@ -5,17 +5,19 @@
 
 A high-performance, web-based SQL query visualizer and advisor that helps developers understand and optimize their database queries.
 
-## ✨ Features
+## Features
 
 - **Interactive Web UI** for exploring query execution plans with mouse and keyboard
 - **PostgreSQL Support** with full EXPLAIN ANALYZE visualization
 - **Plan Visualization** with expandable/collapsible nodes and detailed execution metrics
+- **Performance Analytics** with real-time cost analysis and color-coded performance indicators
+- **Interactive Examples** with one-click query execution for common patterns
+- **Export Capabilities** supporting JSON, text formats, and clipboard copy
+- **Dark/Light Themes** with persistent user preferences
 - **Real-time Query Execution** via REST API endpoints
-- **Modern Web Interface** with responsive design for desktop and mobile
 - **Lightweight & Fast** built with Rust backend for maximum performance
-- **Cross-platform** works anywhere you can run a web browser
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -167,7 +169,6 @@ Then open your web browser and navigate to `http://localhost:3000` to access the
 - Improved error handling and user feedback
 - Enhanced plan visualization with expandable/collapsible nodes
 - Real-time query execution and plan generation
-- Cross-platform web interface accessible from any modern browser
 
 ## Architecture
 
@@ -208,10 +209,19 @@ graph TD
 - [x] REST API endpoints for query execution
 - [x] Interactive plan tree with expand/collapse functionality
 
-### Phase 2: Advisor Engine
+### Phase 2: Enhanced Features
 
+- [x] Performance metrics and analysis
+  - [x] Real-time cost analysis with color-coded indicators
+  - [x] Execution time and row count metrics
+  - [x] Plan node statistics dashboard
+- [x] Export functionality
+  - [x] JSON format export
+  - [x] Text format export  
+  - [x] Copy to clipboard with visual feedback
+- [x] Interactive example queries
+- [x] Dark/light theme toggle with persistent preferences
 - [ ] Rule-based optimization suggestions
-- [ ] Performance metrics and analysis
 - [ ] Query history and comparison
 
 ### Phase 3: Multi-engine Support
@@ -222,9 +232,11 @@ graph TD
 
 ### Phase 4: Advanced Features
 
-- [ ] Export plans (JSON, HTML, PNG)
+- [x] Export plans (JSON, Text formats)
+- [ ] Export plans (HTML, PNG formats)
 - [ ] Plugin system for custom visualizations
 - [ ] Benchmarking tools
+- [ ] Rule-based optimization advisor engine
 
 ## License
 
@@ -234,8 +246,3 @@ This project is dual-licensed under either:
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 
 at your option.
-
-## Acknowledgments
-
-- Inspired by [pgAdmin](https://www.pgadmin.org/), [DBeaver](https://dbeaver.io/), and other database tools
-- Uses [SQLx](https://github.com/launchbadge/sqlx) for database access

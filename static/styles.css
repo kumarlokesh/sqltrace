@@ -47,6 +47,215 @@ body {
     gap: 2rem;
 }
 
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Example queries section */
+.examples-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.examples-section h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.example-queries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.example-query {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #495057;
+}
+
+.example-query:hover {
+    background: #e9ecef;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+/* Export section */
+.export-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e9ecef;
+}
+
+.export-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.export-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background-color 0.2s ease;
+}
+
+.export-btn:hover {
+    background: #5a6268;
+}
+
+/* Enhanced error styles */
+.error-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.error-icon {
+    color: #dc3545;
+    font-size: 1.1rem;
+    margin-top: 0.1rem;
+}
+
+/* Performance metrics */
+.performance-summary {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.metric-item {
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.metric-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.cost-high { color: #dc3545; }
+.cost-medium { color: #ffc107; }
+.cost-low { color: #28a745; }
+
+/* Dark mode */
+.theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.theme-toggle:hover {
+    background: #5a6fd8;
+    transform: scale(1.1);
+}
+
+/* Dark mode styles */
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+.dark-mode .header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+}
+
+.dark-mode .query-section,
+.dark-mode .results-section,
+.dark-mode .examples-section {
+    background: #2d3748;
+    color: #e0e0e0;
+}
+
+.dark-mode .query-input-container textarea {
+    background: #4a5568;
+    color: #e0e0e0;
+    border-color: #718096;
+}
+
+.dark-mode .example-query {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e0e0e0;
+}
+
+.dark-mode .example-query:hover {
+    background: #718096;
+    border-color: #667eea;
+}
+
+.dark-mode .plan-node {
+    background: #4a5568;
+    border-color: #718096;
+}
+
+.dark-mode .performance-summary {
+    background: #4a5568;
+    border-color: #718096;
+}
+
+.dark-mode .export-btn {
+    background: #4a5568;
+    color: #e0e0e0;
+}
+
+.dark-mode .export-btn:hover {
+    background: #718096;
+}
+
 @media (min-width: 768px) {
     .main {
         grid-template-columns: 1fr 2fr;

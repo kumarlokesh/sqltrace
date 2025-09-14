@@ -7,6 +7,8 @@ class SQLTraceApp {
         this.errorContainer = document.getElementById('errorContainer');
         this.errorText = document.getElementById('errorText');
         this.planContainer = document.getElementById('planContainer');
+        this.exportSection = document.getElementById('exportSection');
+        this.currentPlanData = null;
         
         this.init();
     }
@@ -18,6 +20,24 @@ class SQLTraceApp {
                 this.executeQuery();
             }
         });
+
+        // Add event listeners for example queries
+        document.querySelectorAll('.example-query').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const query = e.target.getAttribute('data-query');
+                this.queryInput.value = query;
+                this.executeQuery();
+            });
+        });
+
+        // Add event listeners for export buttons
+        document.getElementById('exportJson')?.addEventListener('click', () => this.exportAsJson());
+        document.getElementById('exportText')?.addEventListener('click', () => this.exportAsText());
+        document.getElementById('copyPlan')?.addEventListener('click', () => this.copyToClipboard());
+
+        // Add theme toggle functionality
+        document.getElementById('themeToggle')?.addEventListener('click', () => this.toggleTheme());
+        this.loadTheme();
     }
 
     async executeQuery() {
@@ -57,17 +77,16 @@ class SQLTraceApp {
     }
 
     setLoading(loading) {
-        const btnText = this.executeBtn.querySelector('.btn-text');
-        const btnSpinner = this.executeBtn.querySelector('.btn-spinner');
-        
         this.executeBtn.disabled = loading;
+        this.executeBtn.querySelector('.btn-text').textContent = loading ? 'Analyzing...' : 'Analyze Query';
+        this.executeBtn.querySelector('.btn-spinner').style.display = loading ? 'inline-block' : 'none';
         
+        // Add loading class to main container
+        const querySection = document.querySelector('.query-section');
         if (loading) {
-            btnText.style.display = 'none';
-            btnSpinner.style.display = 'inline';
+            querySection.classList.add('loading');
         } else {
-            btnText.style.display = 'inline';
-            btnSpinner.style.display = 'none';
+            querySection.classList.remove('loading');
         }
     }
 
@@ -95,6 +114,12 @@ class SQLTraceApp {
             return;
         }
 
+        // Store current plan data for export functionality
+        this.currentPlanData = planData;
+
+        // Create performance metrics summary
+        const performanceMetrics = this.renderPerformanceMetrics(planData);
+        
         const planTree = document.createElement('div');
         planTree.className = 'plan-tree';
         
@@ -103,8 +128,11 @@ class SQLTraceApp {
             this.renderNode(planTree, planData.nodes, rootIdx, 0);
         });
 
-        this.planContainer.innerHTML = '';
+        this.planContainer.innerHTML = performanceMetrics;
         this.planContainer.appendChild(planTree);
+        
+        // Show export section
+        this.exportSection.style.display = 'block';
     }
 
     renderNode(container, nodes, nodeIdx, level) {
@@ -224,6 +252,179 @@ class SQLTraceApp {
         });
         
         return nodes.map((_, idx) => idx).filter(idx => !allChildren.has(idx));
+    }
+
+    // Export functionality
+    exportAsJson() {
+        if (!this.currentPlanData) return;
+        
+        const dataStr = JSON.stringify(this.currentPlanData, null, 2);
+        this.downloadFile(dataStr, 'execution-plan.json', 'application/json');
+    }
+
+    exportAsText() {
+        if (!this.currentPlanData) return;
+        
+        let textOutput = 'SQL Execution Plan\n';
+        textOutput += '==================\n\n';
+        
+        this.currentPlanData.root_indices.forEach(rootIdx => {
+            textOutput += this.nodeToText(this.currentPlanData.nodes, rootIdx, 0);
+        });
+        
+        this.downloadFile(textOutput, 'execution-plan.txt', 'text/plain');
+    }
+
+    nodeToText(nodes, nodeIdx, level) {
+        const node = nodes[nodeIdx];
+        if (!node) return '';
+        
+        const indent = '  '.repeat(level);
+        let output = `${indent}${node.node_type}`;
+        
+        if (node.relation_name) {
+            output += ` on ${node.relation_name}`;
+        }
+        
+        output += `\n${indent}  Cost: ${node.startup_cost?.toFixed(2) || 0}..${node.total_cost?.toFixed(2) || 0}`;
+        
+        if (node.actual_total_time !== undefined) {
+            output += ` | Time: ${node.actual_startup_time?.toFixed(3) || 0}..${node.actual_total_time?.toFixed(3) || 0}ms`;
+        }
+        
+        if (node.actual_rows !== undefined) {
+            output += ` | Rows: ${node.actual_rows}`;
+        }
+        
+        output += '\n';
+        
+        // Add children
+        if (node.children && node.children.length > 0) {
+            node.children.forEach(childIdx => {
+                output += this.nodeToText(nodes, childIdx, level + 1);
+            });
+        }
+        
+        return output;
+    }
+
+    async copyToClipboard() {
+        if (!this.currentPlanData) return;
+        
+        try {
+            const textOutput = this.nodeToText(this.currentPlanData.nodes, this.currentPlanData.root_indices[0], 0);
+            await navigator.clipboard.writeText(textOutput);
+            
+            // Show feedback
+            const btn = document.getElementById('copyPlan');
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.style.background = '#28a745';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '#6c757d';
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy to clipboard:', err);
+            alert('Failed to copy to clipboard');
+        }
+    }
+
+    downloadFile(content, filename, contentType) {
+        const blob = new Blob([content], { type: contentType });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(url);
+    }
+
+    // Theme functionality
+    toggleTheme() {
+        const body = document.body;
+        const themeToggle = document.getElementById('themeToggle');
+        
+        body.classList.toggle('dark-mode');
+        
+        if (body.classList.contains('dark-mode')) {
+            themeToggle.textContent = '☀️';
+            localStorage.setItem('theme', 'dark');
+        } else {
+            themeToggle.textContent = '🌙';
+            localStorage.setItem('theme', 'light');
+        }
+    }
+
+    loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        const body = document.body;
+        const themeToggle = document.getElementById('themeToggle');
+        
+        if (savedTheme === 'dark') {
+            body.classList.add('dark-mode');
+            themeToggle.textContent = '☀️';
+        } else {
+            themeToggle.textContent = '🌙';
+        }
+    }
+
+    // Performance metrics calculation
+    calculatePerformanceMetrics(planData) {
+        if (!planData || !planData.nodes) return null;
+        
+        let totalCost = 0;
+        let totalTime = 0;
+        let totalRows = 0;
+        let nodeCount = 0;
+        
+        planData.nodes.forEach(node => {
+            if (node.total_cost) totalCost = Math.max(totalCost, node.total_cost);
+            if (node.actual_total_time) totalTime += node.actual_total_time;
+            if (node.actual_rows) totalRows += node.actual_rows;
+            nodeCount++;
+        });
+        
+        return {
+            totalCost: totalCost.toFixed(2),
+            totalTime: totalTime.toFixed(3),
+            totalRows: totalRows,
+            nodeCount: nodeCount
+        };
+    }
+
+    renderPerformanceMetrics(planData) {
+        const metrics = this.calculatePerformanceMetrics(planData);
+        if (!metrics) return '';
+        
+        const costClass = metrics.totalCost > 1000 ? 'cost-high' : 
+                         metrics.totalCost > 100 ? 'cost-medium' : 'cost-low';
+        
+        return `
+            <div class="performance-summary">
+                <div class="metric-item">
+                    <div class="metric-value ${costClass}">${metrics.totalCost}</div>
+                    <div class="metric-label">Total Cost</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">${metrics.totalTime}ms</div>
+                    <div class="metric-label">Execution Time</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">${metrics.totalRows}</div>
+                    <div class="metric-label">Rows Processed</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">${metrics.nodeCount}</div>
+                    <div class="metric-label">Plan Nodes</div>
+                </div>
+            </div>
+        `;
     }
 }
 

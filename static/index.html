@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">🌙</button>
+    
     <div class="container">
         <header class="header">
             <h1>SQLTrace</h1>
@@ -16,6 +19,37 @@
         <main class="main">
             <div class="query-section">
                 <h2>SQL Query</h2>
+                
+                <!-- Example Queries Section -->
+                <div class="examples-section">
+                    <h3>📝 Example Queries</h3>
+                    <div class="example-queries">
+                        <button class="example-query" data-query="SELECT u.username, u.email, COUNT(o.id) as order_count
+FROM ecommerce.users u
+LEFT JOIN ecommerce.orders o ON u.id = o.user_id
+WHERE u.created_at > '2024-01-01'
+GROUP BY u.id, u.username, u.email
+ORDER BY order_count DESC
+LIMIT 10;">Simple Join</button>
+                        <button class="example-query" data-query="SELECT p.name, c.name as category, AVG(r.rating) as avg_rating
+FROM ecommerce.products p
+JOIN ecommerce.categories c ON p.category_id = c.id
+LEFT JOIN ecommerce.reviews r ON p.id = r.product_id
+GROUP BY p.id, p.name, c.name
+HAVING AVG(r.rating) > 4.0
+ORDER BY avg_rating DESC;">Complex Join</button>
+                        <button class="example-query" data-query="SELECT * FROM ecommerce.users LIMIT 10;">Table Scan</button>
+                        <button class="example-query" data-query="SELECT COUNT(*) as total_users FROM ecommerce.users;">Aggregation</button>
+                        <button class="example-query" data-query="SELECT u.username, SUM(oi.quantity * oi.price) as total_spent
+FROM ecommerce.users u
+JOIN ecommerce.orders o ON u.id = o.user_id
+JOIN ecommerce.order_items oi ON o.id = oi.order_id
+GROUP BY u.id, u.username
+ORDER BY total_spent DESC
+LIMIT 5;">Multi-Join Analysis</button>
+                    </div>
+                </div>
+
                 <div class="query-input-container">
                     <textarea 
                         id="queryInput" 
@@ -30,7 +64,7 @@ ORDER BY order_count DESC
 LIMIT 10;</textarea>
                     <button id="executeBtn" class="execute-btn">
                         <span class="btn-text">Analyze Query</span>
-                        <span class="btn-spinner" style="display: none;">⟳</span>
+                        <span class="btn-spinner"><div class="spinner"></div></span>
                     </button>
                 </div>
             </div>
@@ -39,8 +73,11 @@ LIMIT 10;</textarea>
                 <h2>Execution Plan</h2>
                 <div id="errorContainer" class="error-container" style="display: none;">
                     <div class="error-message">
-                        <strong>Error:</strong>
-                        <span id="errorText"></span>
+                        <span class="error-icon">⚠️</span>
+                        <div>
+                            <strong>Error:</strong>
+                            <span id="errorText"></span>
+                        </div>
                     </div>
                 </div>
                 
@@ -48,6 +85,16 @@ LIMIT 10;</textarea>
                     <div class="empty-state">
                         <div class="empty-icon">📊</div>
                         <p>Click "Analyze Query" to visualize the execution plan</p>
+                    </div>
+                </div>
+                
+                <!-- Export Section -->
+                <div id="exportSection" class="export-section" style="display: none;">
+                    <h3>Export Plan</h3>
+                    <div class="export-buttons">
+                        <button class="export-btn" id="exportJson">Export as JSON</button>
+                        <button class="export-btn" id="exportText">Export as Text</button>
+                        <button class="export-btn" id="copyPlan">Copy to Clipboard</button>
                     </div>
                 </div>
             </div>

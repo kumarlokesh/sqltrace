@@ -80,3 +80,6 @@ $RECYCLE.BIN/
 *.db
 *.sqlite
 *.sqlite3
+
+# Debug files
+debug_plan.json
