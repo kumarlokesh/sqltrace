@@ -88,17 +88,114 @@ LIMIT 10;</textarea>
                     </div>
                 </div>
                 
+                <!-- Advisor Suggestions Section -->
+                <div id="advisorSection" class="advisor-section" style="display: none;">
+                    <h3>🎯 Optimization Suggestions</h3>
+                    <div id="advisorContent"></div>
+                </div>
+
                 <!-- Export Section -->
                 <div id="exportSection" class="export-section" style="display: none;">
                     <h3>Export Plan</h3>
                     <div class="export-buttons">
                         <button class="export-btn" id="exportJson">Export as JSON</button>
                         <button class="export-btn" id="exportText">Export as Text</button>
+                        <button class="export-btn" id="exportHtml">Export as HTML</button>
                         <button class="export-btn" id="copyPlan">Copy to Clipboard</button>
+                    </div>
+                </div>
+
+                <!-- Query History Section -->
+                <div id="historySection" class="history-section">
+                    <div class="history-header">
+                        <h3>📝 Query History</h3>
+                        <div class="history-controls">
+                            <button id="clearHistory" class="clear-btn">Clear History</button>
+                            <button id="toggleComparison" class="comparison-btn">Compare Mode</button>
+                        </div>
+                    </div>
+                    <div id="historyList" class="history-list">
+                        <div class="empty-history">
+                            <p>No queries executed yet. Run a query to see it appear here.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Section -->
+                <div id="comparisonSection" class="comparison-section" style="display: none;">
+                    <div class="comparison-header">
+                        <h3>🔍 Query Comparison</h3>
+                        <button id="exitComparison" class="exit-comparison-btn">Exit Comparison</button>
+                    </div>
+                    <div class="comparison-content">
+                        <div class="comparison-instructions">
+                            <p>Select two queries from history to compare their execution plans and performance metrics.</p>
+                        </div>
+                        <div id="comparisonResults" class="comparison-results" style="display: none;">
+                            <div class="comparison-grid">
+                                <div class="comparison-item">
+                                    <h4>Query A</h4>
+                                    <div id="comparisonA" class="comparison-details"></div>
+                                </div>
+                                <div class="comparison-item">
+                                    <h4>Query B</h4>
+                                    <div id="comparisonB" class="comparison-details"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Benchmark Section -->
+    <div class="benchmark-section">
+        <h2>Benchmark Queries</h2>
+        
+        <!-- Single Query Benchmark -->
+        <div class="benchmark-single">
+            <h3>Single Query Benchmark</h3>
+            <div class="benchmark-config">
+                <label>
+                    Warmup Runs: 
+                    <input type="number" id="warmup-runs" value="2" min="0" max="10">
+                </label>
+                <label>
+                    Benchmark Runs: 
+                    <input type="number" id="benchmark-runs" value="5" min="1" max="50">
+                </label>
+                <label>
+                    Timeout (seconds): 
+                    <input type="number" id="timeout-seconds" value="30" min="5" max="300">
+                </label>
+            </div>
+            <button onclick="runBenchmark()" class="btn btn-primary">
+                <i class="fas fa-stopwatch"></i> Run Benchmark
+            </button>
+            <div id="benchmark-results" class="benchmark-results"></div>
+        </div>
+        
+        <!-- Query Comparison Benchmark -->
+        <div class="benchmark-comparison">
+            <h3>Compare Two Queries</h3>
+            <div class="comparison-inputs">
+                <div class="query-input-group">
+                    <label for="query-a">Query A:</label>
+                    <textarea id="query-a" placeholder="Enter first query to compare..."></textarea>
+                    <input type="text" id="label-a" placeholder="Label for Query A" value="Query A">
+                </div>
+                <div class="query-input-group">
+                    <label for="query-b">Query B:</label>
+                    <textarea id="query-b" placeholder="Enter second query to compare..."></textarea>
+                    <input type="text" id="label-b" placeholder="Label for Query B" value="Query B">
+                </div>
+            </div>
+            <button onclick="runComparison()" class="btn btn-primary">
+                <i class="fas fa-balance-scale"></i> Compare Queries
+            </button>
+            <div id="comparison-results" class="comparison-results"></div>
+        </div>
     </div>
 
     <script src="/static/script.js"></script>

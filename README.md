@@ -3,18 +3,35 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/sqltrace-rs.svg)](https://crates.io/crates/sqltrace-rs)
 
-A high-performance, web-based SQL query visualizer and advisor that helps developers understand and optimize their database queries.
+A high-performance, web-based SQL query visualizer, performance analyzer, and optimization advisor that helps developers understand and optimize their database queries across multiple database engines.
 
 ## Features
 
+### Query Analysis & Visualization
+
 - **Interactive Web UI** for exploring query execution plans with mouse and keyboard
-- **PostgreSQL Support** with full EXPLAIN ANALYZE visualization
+- **Multi-Engine Support** for PostgreSQL, MySQL, and SQLite databases
 - **Plan Visualization** with expandable/collapsible nodes and detailed execution metrics
 - **Performance Analytics** with real-time cost analysis and color-coded performance indicators
 - **Interactive Examples** with one-click query execution for common patterns
-- **Export Capabilities** supporting JSON, text formats, and clipboard copy
-- **Dark/Light Themes** with persistent user preferences
-- **Real-time Query Execution** via REST API endpoints
+
+### Performance & Benchmarking
+
+- **Advanced Benchmarking Suite** with configurable warmup and benchmark runs
+- **Statistical Analysis** including averages, percentiles, confidence intervals, and significance testing
+- **Query Comparison** with side-by-side performance analysis and improvement percentages
+- **Query History** with persistent storage and comparison capabilities
+
+### Optimization & Advisory
+
+- **Rule-based Query Advisor** with intelligent optimization suggestions
+- **Performance Impact Scoring** with severity levels and specific recommendations
+- **Plan Analysis** detecting sequential scans, missing indexes, and inefficient operations
+
+### Export & Integration
+
+- **Multiple Export Formats** supporting JSON, text, HTML, and clipboard copy
+- **RESTful API** for programmatic access to all features
 - **Lightweight & Fast** built with Rust backend for maximum performance
 
 ## Getting Started
@@ -22,8 +39,26 @@ A high-performance, web-based SQL query visualizer and advisor that helps develo
 ### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
-- [PostgreSQL](https://www.postgresql.org/download/) (for running tests)
+- [Docker](https://www.docker.com/get-started) and [docker-compose](https://docs.docker.com/compose/install/) (for database setup)
 - [just](https://github.com/casey/just) (optional, for running development tasks)
+
+### Quick Start with Docker
+
+The fastest way to get started is using our multi-engine Docker setup:
+
+```bash
+# Clone the repository
+git clone https://github.com/kumarlokesh/sqltrace-rs.git
+cd sqltrace-rs
+
+# Start all database engines
+docker-compose up -d postgres mysql sqlite
+
+# Build and run SQLTrace
+cargo run -- --database-url postgres://postgres:postgres@localhost:5432/sqltrace_dev
+```
+
+Then open <http://localhost:3000> in your browser!
 
 ## Testing
 
@@ -85,13 +120,6 @@ source tests/test.env
 cargo test -- --test-threads=1
 ```
 
-### Development Workflow
-
-1. Make your changes
-2. Run tests: `just test`
-3. Run lints: `just lint`
-4. Format code: `cargo fmt`
-
 ### Installation
 
 ```bash
@@ -107,13 +135,19 @@ cargo build --release
 ### Basic Usage
 
 ```bash
-# Start the web server (default port 3000)
-sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname
+# PostgreSQL (recommended for full feature support)
+sqltrace-rs --database-url postgres://postgres:postgres@localhost:5432/sqltrace_dev
 
-# Use custom host and port
+# MySQL
+sqltrace-rs --database-url mysql://mysql:mysql@localhost:3306/sqltrace_dev
+
+# SQLite
+sqltrace-rs --database-url sqlite:///path/to/database.db
+
+# Custom host and port
 sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname --port 8080 --host 0.0.0.0
 
-# Run with debug logging (for troubleshooting)
+# Debug logging
 RUST_LOG=debug sqltrace-rs --database-url postgres://user:password@localhost:5432/dbname
 ```
 
@@ -121,54 +155,146 @@ Then open your web browser and navigate to `http://localhost:3000` to access the
 
 ### Web Interface
 
+#### Query Analysis
+
 - **Query Editor**: Write and edit SQL queries with syntax highlighting
 - **Execute Button**: Analyze your query and generate execution plan visualization
 - **Interactive Plan Tree**: Click to expand/collapse nodes in the execution plan
 - **Detailed Metrics**: View cost, timing, and row information for each operation
-- **Error Handling**: Clear error messages for invalid queries or connection issues
+- **Optimization Suggestions**: Get intelligent recommendations from the built-in advisor
+
+#### Performance Benchmarking
+
+- **Single Query Benchmarking**: Run configurable performance tests on individual queries
+- **Query Comparison**: Compare performance between two different queries
+- **Statistical Analysis**: View detailed performance statistics and confidence intervals
+- **Results Export**: Save benchmark results in multiple formats
+
+#### Database Management
+
+- **Multi-Engine Support**: Switch between PostgreSQL, MySQL, and SQLite
+- **Query History**: Access previously executed queries with persistent storage
+- **Export Options**: Download plans and results in JSON, text, or HTML formats
+
+## Database Setup
+
+### Using Docker (Recommended)
+
+```bash
+# Start all database engines with sample data
+docker-compose up -d
+
+# Start specific engines only
+docker-compose up -d postgres mysql
+
+# Include database management UIs
+docker-compose --profile admin up -d
+
+# Access management interfaces:
+# - pgAdmin: http://localhost:8080 (admin@sqltrace.dev / postgres)
+# - phpMyAdmin: http://localhost:8081 (mysql / mysql)
+```
+
+### Manual Database Setup
+
+#### PostgreSQL
+
+```sql
+CREATE DATABASE sqltrace_dev;
+\c sqltrace_dev;
+\i scripts/init_db.sql
+\i scripts/sample_data.sql
+```
+
+#### MySQL
+
+```sql
+CREATE DATABASE sqltrace_dev;
+USE sqltrace_dev;
+source scripts/init_mysql.sql;
+source scripts/sample_data_mysql.sql;
+```
+
+#### SQLite
+
+```bash
+sqlite3 sqltrace_dev.db < scripts/init_sqlite.sql
+sqlite3 sqltrace_dev.db < scripts/sample_data_sqlite.sql
+```
 
 ## Troubleshooting
 
-### Common Issues
+### Connection Issues
 
-- **Connection Issues**: Ensure your database is running and accessible
+```bash
+# Test PostgreSQL connection
+psql postgres://postgres:postgres@localhost:5432/sqltrace_dev -c "SELECT 1"
 
-  ```bash
-  # Test database connection
-  psql postgres://user:password@localhost:5432/dbname -c "SELECT 1"
-  ```
+# Test MySQL connection
+mysql -h localhost -u mysql -pmysql sqltrace_dev -e "SELECT 1"
 
-- **Permissions**: The database user needs permission to run EXPLAIN ANALYZE
+# Test SQLite database
+sqlite3 sqltrace_dev.db "SELECT 1"
+```
 
-  ```sql
-  GRANT pg_read_all_stats TO your_username;
-  ```
+### Permissions
 
-- **Web Server Issues**: Check if the port is already in use
+For PostgreSQL, ensure the user has required permissions:
 
-  ```bash
-  # Check what's using port 3000
-  lsof -i :3000
-  
-  # Use a different port if needed
-  sqltrace-rs --database-url postgres://... --port 8080
-  ```
+```sql
+GRANT pg_read_all_stats TO your_username;
+GRANT CONNECT ON DATABASE sqltrace_dev TO your_username;
+GRANT USAGE ON SCHEMA public TO your_username;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO your_username;
+```
 
-- **Debugging**: Enable debug logging for more information
+### Performance Issues
 
-  ```bash
-  RUST_LOG=debug sqltrace-rs --database-url postgres://...
-  ```
+```bash
+# Check port availability
+lsof -i :3000
 
-## Recent Changes
+# Use different port
+sqltrace-rs --database-url postgres://... --port 8080
 
-### 0.1.0 (Unreleased)
+# Enable debug logging
+RUST_LOG=debug sqltrace-rs --database-url postgres://...
+```
 
-- Modern, responsive web UI with interactive execution plan visualization
-- RESTful API for programmatic access to query analysis
-- Improved error handling and user feedback
-- Enhanced plan visualization with expandable/collapsible nodes
-- Real-time query execution and plan generation
+## API Reference
+
+### Query Analysis
+
+```bash
+# Analyze a query
+curl -X POST http://localhost:3000/api/explain \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT * FROM users WHERE age > 25"}'
+```
+
+### Benchmarking
+
+```bash
+# Benchmark a single query
+curl -X POST http://localhost:3000/api/benchmark \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "SELECT * FROM users WHERE department = 'Engineering'",
+    "warmup_runs": 3,
+    "benchmark_runs": 10,
+    "timeout_seconds": 30
+  }'
+
+# Compare two queries
+curl -X POST http://localhost:3000/api/benchmark/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query1": "SELECT * FROM users WHERE department = 'Engineering'",
+    "query2": "SELECT * FROM users WHERE department = 'Marketing'",
+    "warmup_runs": 3,
+    "benchmark_runs": 10
+  }'
+```
 
 ## Architecture
 
@@ -194,49 +320,6 @@ graph TD
 4. **REST API**: JSON endpoints for query execution and plan retrieval
 5. **Web Frontend**: Modern JavaScript interface for interactive plan visualization
 6. **Advisor Engine**: Analyzes plans and provides optimization suggestions
-
-## Roadmap
-
-### Phase 1: MVP (PostgreSQL)
-
-- [x] Project setup and basic structure
-- [x] PostgreSQL connection and query execution
-  - [x] Database connection pooling
-  - [x] Query execution with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-  - [x] Execution plan parsing and deserialization
-  - [x] Comprehensive test coverage for various query types
-- [x] Web-based UI for plan visualization  
-- [x] REST API endpoints for query execution
-- [x] Interactive plan tree with expand/collapse functionality
-
-### Phase 2: Enhanced Features
-
-- [x] Performance metrics and analysis
-  - [x] Real-time cost analysis with color-coded indicators
-  - [x] Execution time and row count metrics
-  - [x] Plan node statistics dashboard
-- [x] Export functionality
-  - [x] JSON format export
-  - [x] Text format export  
-  - [x] Copy to clipboard with visual feedback
-- [x] Interactive example queries
-- [x] Dark/light theme toggle with persistent preferences
-- [ ] Rule-based optimization suggestions
-- [ ] Query history and comparison
-
-### Phase 3: Multi-engine Support
-
-- [ ] MySQL support
-- [ ] SQLite support
-- [ ] Abstract plan parser interface
-
-### Phase 4: Advanced Features
-
-- [x] Export plans (JSON, Text formats)
-- [ ] Export plans (HTML, PNG formats)
-- [ ] Plugin system for custom visualizations
-- [ ] Benchmarking tools
-- [ ] Rule-based optimization advisor engine
 
 ## License
 

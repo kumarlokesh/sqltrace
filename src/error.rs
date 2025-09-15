@@ -59,6 +59,7 @@ impl From<DbError> for SqlTraceError {
             DbError::Config(msg) => SqlTraceError::Config(msg),
             DbError::PlanError(msg) => SqlTraceError::PlanError(msg),
             DbError::InvalidQuery(msg) => SqlTraceError::InvalidQuery(msg),
+            DbError::PlanParsing(msg) => SqlTraceError::PlanError(msg),
         }
     }
 }

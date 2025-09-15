@@ -37,6 +37,10 @@ pub enum DbError {
     /// The provided SQL query is invalid
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
+
+    /// Error occurred while parsing execution plan JSON
+    #[error("Plan parsing error: {0}")]
+    PlanParsing(String),
 }
 
 impl From<SqlxError> for DbError {

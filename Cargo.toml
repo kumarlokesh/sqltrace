@@ -27,6 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenv = "0.15"
 uuid = { version = "1.8.0", features = ["v4"] }
 sqlparser = "0.37.0"
+async-trait = "0.1"
 
 # Enable offline mode for development
 [package.metadata.sqlx]

@@ -2,31 +2,39 @@
 //!
 //! A high-performance web-based SQL query visualizer and advisor for PostgreSQL.
 //!
-//! This library provides functionality for analyzing and visualizing SQL query execution plans
-//! in a web-based user interface. It's designed to help developers understand and optimize
-//! their database queries by providing detailed insights into query execution.
+//! This crate provides tools for analyzing and visualizing PostgreSQL query execution plans.
+//! It includes a web-based interface for interactive plan exploration and performance analysis.
 //!
-//! ## Features
-//! - Execution plan visualization via web interface
-//! - Query analysis and optimization suggestions  
-//! - Support for PostgreSQL (with plans to add more database backends)
+//! # Features
+//!
+//! - PostgreSQL execution plan parsing and analysis
+//! - Interactive web-based visualization
 //! - REST API for programmatic access
+//! - Performance metrics and optimization insights
+//! - Rule-based optimization advisor
+//!
+//! # Example
+//!
+//! ```no_run
+//! use sqltrace_rs::{Database, server::create_router};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let db = Database::new("postgres://user:pass@localhost/db").await?;
+//!     let app = create_router(db).await;
+//!     // Start server...
+//!     Ok(())
+//! }
+//! ```
 
 #![warn(missing_docs)]
 
-/// Database connection and query execution functionality.
+pub mod advisor;
+pub mod benchmark;
 pub mod db;
-
-/// Error types and result handling for the SQLTrace application.
 pub mod error;
-
-/// Web server setup and configuration.
 pub mod server;
-
-/// UI utilities and data structures for rendering execution plans.
 pub mod ui;
-
-/// Web-related utilities and validation functions.
 pub mod web;
 
 /// Re-export common types for easier use in tests and examples

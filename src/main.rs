@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use tracing::{info, Level};
 
 use sqltrace_rs::{
+    advisor::QueryAdvisor,
     server::{create_router, AppState},
     Database,
 };
@@ -43,7 +44,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Connected to database");
 
     // Create application state
-    let state = AppState { db };
+    let state = AppState {
+        db,
+        advisor: QueryAdvisor::new(),
+    };
 
     // Build the router
     let app = create_router(state);

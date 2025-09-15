@@ -1,20 +1,20 @@
-//! Database module for SQL Trace
+//! Database interaction layer for SQLTrace
 //!
-//! This module handles all database interactions including connection management,
-//! query execution, and plan analysis.
+//! This module handles connections to PostgreSQL and parses execution plans
+//! returned by EXPLAIN queries. It also provides an abstract interface for
+//! multiple database engines.
 
-#![allow(dead_code)]
+use serde_json::Value;
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
+use std::time::Duration;
 
+pub mod engines;
 pub mod error;
 pub mod models;
 
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{Pool, Postgres, Row};
-use std::time::Duration;
-
 use crate::db::error::DbError;
 use crate::db::models::plan::{ExecutionPlan, ExplainPlan, PlanNode};
-use crate::error::{Result, SqlTraceError};
+use crate::SqlTraceError;
 
 /// Database connection manager
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct Database {
 
 impl Database {
     /// Create a new database connection pool
-    pub async fn new(connection_string: &str) -> Result<Self> {
+    pub async fn new(connection_string: &str) -> Result<Self, SqlTraceError> {
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .acquire_timeout(Duration::from_secs(3))
@@ -40,8 +40,8 @@ impl Database {
         Self { pool }
     }
 
-    /// Execute a query and return its execution plan
-    pub async fn explain(&self, query: &str) -> Result<ExecutionPlan> {
+    /// Execute a query and get the execution plan
+    pub async fn explain(&self, query: &str) -> Result<ExecutionPlan, SqlTraceError> {
         // First validate the query
         self.validate_query(query)?;
 
@@ -126,7 +126,7 @@ impl Database {
     }
 
     /// Validate that a query is a SELECT query
-    fn validate_query(&self, query: &str) -> Result<()> {
+    fn validate_query(&self, query: &str) -> Result<(), SqlTraceError> {
         let query = query.trim().to_lowercase();
 
         // Check if the query starts with SELECT
@@ -153,6 +153,22 @@ impl Database {
 
         Ok(())
     }
+}
+
+/// Parse execution plan from PostgreSQL EXPLAIN JSON output
+pub fn parse_execution_plan(explain_json: &Value) -> Result<ExecutionPlan, SqlTraceError> {
+    let explain_array = explain_json
+        .as_array()
+        .ok_or_else(|| DbError::PlanParsing("Expected array for EXPLAIN output".to_string()))?;
+
+    let explain_plan: ExplainPlan = serde_json::from_value(explain_array[0].clone())
+        .map_err(|e| DbError::PlanParsing(format!("Failed to parse EXPLAIN plan: {}", e)))?;
+
+    Ok(ExecutionPlan {
+        root: explain_plan.plan,
+        planning_time: explain_plan.planning_time,
+        execution_time: explain_plan.execution_time,
+    })
 }
 
 #[cfg(test)]

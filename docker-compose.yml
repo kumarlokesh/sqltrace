@@ -20,6 +20,47 @@ services:
       timeout: 5s
       retries: 5
 
+  # MySQL database for multi-engine testing
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: sqltrace_dev
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init_mysql.sql:/docker-entrypoint-initdb.d/01_init_mysql.sql
+      - ./scripts/sample_data_mysql.sql:/docker-entrypoint-initdb.d/02_sample_data_mysql.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mysql", "-pmysql"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password
+
+  # SQLite is file-based, but we can use a container for testing
+  sqlite:
+    image: alpine:latest
+    volumes:
+      - sqlite_data:/data
+      - ./scripts/init_sqlite.sql:/scripts/init_sqlite.sql
+      - ./scripts/sample_data_sqlite.sql:/scripts/sample_data_sqlite.sql
+    command: |
+      sh -c "
+        apk add --no-cache sqlite &&
+        sqlite3 /data/sqltrace_dev.db < /scripts/init_sqlite.sql &&
+        sqlite3 /data/sqltrace_dev.db < /scripts/sample_data_sqlite.sql &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/sqltrace_dev.db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:7
@@ -35,6 +76,22 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
+  # Optional: phpMyAdmin for MySQL management
+  phpmyadmin:
+    image: phpmyadmin:latest
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: mysql
+      PMA_PASSWORD: mysql
+    ports:
+      - "8081:80"
+    depends_on:
+      - mysql
+    profiles:
+      - admin
+
 volumes:
   postgres_data:
+  mysql_data:
+  sqlite_data:
   pgadmin_data:
