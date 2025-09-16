@@ -54,7 +54,6 @@ async fn test_validate_query_rejects_non_select() -> anyhow::Result<()> {
     with_test_database(|pool| async move {
         let db = Database::from_pool(pool);
 
-        // Should reject INSERT
         let result = db
             .explain("INSERT INTO users (name, email) VALUES ('test', 'test@test.com')")
             .await;
@@ -63,7 +62,6 @@ async fn test_validate_query_rejects_non_select() -> anyhow::Result<()> {
             "Expected invalid query error for INSERT"
         );
 
-        // Should reject UPDATE
         let result = db
             .explain("UPDATE users SET name = 'test' WHERE id = 1")
             .await;
@@ -72,7 +70,6 @@ async fn test_validate_query_rejects_non_select() -> anyhow::Result<()> {
             "Expected invalid query error for UPDATE"
         );
 
-        // Should reject DELETE
         let result = db.explain("DELETE FROM users WHERE id = 1").await;
         assert!(
             matches!(result, Err(SqlTraceError::InvalidQuery(_))),
@@ -86,8 +83,6 @@ async fn test_validate_query_rejects_non_select() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_parse_plan_json_structure() -> anyhow::Result<()> {
-    // This test verifies that we can parse the plan JSON structure correctly
-    // It uses a static JSON string that matches what we expect from PostgreSQL
     let plan_json = r#"
     [
         {
@@ -121,11 +116,9 @@ async fn test_parse_plan_json_structure() -> anyhow::Result<()> {
         }
     ]"#;
 
-    // Parse the JSON into a serde_json::Value
     let plan_value: serde_json::Value =
         serde_json::from_str(plan_json).expect("Failed to parse test plan JSON");
 
-    // Try to parse as a Vec<ExplainPlan>
     let explain_plans: Vec<sqltrace_rs::db::models::plan::ExplainPlan> =
         serde_json::from_value(plan_value).expect("Failed to parse plan as Vec<ExplainPlan>");
 
@@ -151,7 +144,6 @@ async fn test_explain_with_complex_query() -> anyhow::Result<()> {
     with_test_database(|pool| async move {
         let db = Database::from_pool(pool);
 
-        // Test a more complex query with subquery and aggregation
         let plan = db
             .explain(
                 "SELECT u.name, 
@@ -179,7 +171,6 @@ async fn test_explain_with_complex_query() -> anyhow::Result<()> {
             let indent = "  ".repeat(depth);
             let debug_output = format!("{}Node: {}\n", indent, node.node_type);
             if let serde_json::Value::Object(map) = &node.extra {
-                // Check if this node is a subplan
                 let is_subplan = map.get("Subplan Name").map_or(false, |v| !v.is_null()) ||
                                map.get("Parent Relationship").map_or(false, |v| v == "SubPlan");
                 if is_subplan {
@@ -209,7 +200,6 @@ async fn test_explain_with_complex_query() -> anyhow::Result<()> {
 
         // Check for join operation (can be various types like Hash Join, Nested Loop, etc.)
         let has_join = plan.root.node_type.contains("Join");
-        // Check for subplan anywhere in the plan tree
         let (has_subplan, _) = has_subplan(&plan.root, 0);
 
         assert!(

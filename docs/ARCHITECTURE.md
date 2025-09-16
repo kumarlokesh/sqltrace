@@ -5,29 +5,24 @@
 SQLTrace is designed as a modular, extensible web-based SQL query analyzer with the following primary goals:
 
 1. **Performance**: Fast and responsive even with large execution plans
-2. **Extensibility**: Support for multiple database backends
-3. **Usability**: Intuitive TUI for exploring and understanding query execution
-4. **Actionable Insights**: Provide meaningful optimization suggestions
+2. **Multi-Engine Support**: Support for PostgreSQL, MySQL, and SQLite databases
+3. **Usability**: Intuitive web interface for exploring and understanding query execution
+4. **Actionable Insights**: Provide meaningful optimization suggestions and benchmarking
 
 ## High-Level Architecture
 
 ```mermaid
 graph TD
-    subgraph Application
-        A[Web Interface] --> B[Core]
-        B --> C[Database Adapters]
-        B --> D[Plan Processors]
-        B --> E[Visualization Engine]
-        B --> F[Advisor Engine]
-        E --> G[TUI Renderer]
-        F --> G
-    end
-    
-    subgraph External
-        H[PostgreSQL] --> C
-        I[MySQL] --> C
-        J[SQLite] --> C
-    end
+    A[Web Browser] --> B[HTTP Request]
+    B --> C[Axum Web Server]
+    C --> D[SQL Validation]
+    D --> E[Database Connection]
+    E --> F[EXPLAIN ANALYZE]
+    F --> G[Plan Processing]
+    G --> H[JSON Response]
+    H --> I[Web UI Visualization]
+    G --> J[Advisor Engine]
+    J --> H
 ```
 
 ## Core Components

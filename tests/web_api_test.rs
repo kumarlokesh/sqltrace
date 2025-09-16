@@ -12,29 +12,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-/// Request payload for explain endpoint
 #[derive(Deserialize)]
 struct ExplainRequest {
     query: String,
 }
 
-/// Response for explain endpoint
 #[derive(Serialize)]
 struct ExplainResponse {
     plan: serde_json::Value,
     error: Option<String>,
 }
 
-/// Test health endpoint (no database required)
 async fn health_handler() -> ResponseJson<serde_json::Value> {
     ResponseJson(serde_json::json!({"status": "healthy"}))
 }
 
-/// Test explain endpoint that validates queries without database
 async fn explain_validation_handler(
     Json(payload): Json<ExplainRequest>,
 ) -> Result<ResponseJson<ExplainResponse>, StatusCode> {
-    // Validate query syntax first
     if let Err(e) = sqltrace_rs::web::validate_query(&payload.query) {
         return Ok(ResponseJson(ExplainResponse {
             plan: serde_json::json!({}),
@@ -42,7 +37,6 @@ async fn explain_validation_handler(
         }));
     }
 
-    // For testing purposes, return a mock successful response
     Ok(ResponseJson(ExplainResponse {
         plan: serde_json::json!({
             "nodes": [],
@@ -52,14 +46,12 @@ async fn explain_validation_handler(
     }))
 }
 
-/// Helper function to create a test app without database connection
 fn create_test_app() -> Router {
     Router::new()
         .route("/api/health", get(health_handler))
         .route("/api/explain", post(explain_validation_handler))
 }
 
-/// Helper function to make HTTP requests to the test app
 async fn make_request(
     app: &Router,
     method: &str,
@@ -117,7 +109,6 @@ async fn test_explain_valid_query() {
     assert!(body["error"].is_null());
     assert!(body["plan"].is_object());
 
-    // Verify the plan contains expected mock structure
     let plan = &body["plan"];
     assert!(plan["nodes"].is_array());
     assert!(plan["root_indices"].is_array());
@@ -128,7 +119,7 @@ async fn test_explain_invalid_query() {
     let app = create_test_app();
 
     let query_body = json!({
-        "query": "SELECT FROM"  // Invalid SQL
+        "query": "SELECT FROM"
     });
 
     let (status, body) = make_request(&app, "POST", "/api/explain", Some(query_body)).await;
@@ -139,12 +130,9 @@ async fn test_explain_invalid_query() {
     );
 
     assert_eq!(status, StatusCode::OK);
-    // The validation may pass this query, so let's check what we actually get
     if body["error"].is_null() {
-        // Query validation passed, we get a mock response
         assert!(body["plan"].is_object());
     } else {
-        // Query validation failed, we should get an error
         assert!(body["error"].is_string());
         let error_msg = body["error"].as_str().unwrap();
         assert!(
@@ -202,7 +190,6 @@ async fn test_malformed_json_request() {
         .await
         .expect("Failed to execute request");
 
-    // Should return a client error for malformed JSON
     assert!(response.status().is_client_error());
 }
 
@@ -227,6 +214,5 @@ async fn test_missing_query_field() {
         .await
         .expect("Failed to execute request");
 
-    // Should return a client error for missing required field
     assert!(response.status().is_client_error());
 }

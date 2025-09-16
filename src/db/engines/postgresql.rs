@@ -10,8 +10,10 @@ use super::{
 use crate::db::models::ExecutionPlan;
 
 /// PostgreSQL database engine implementation
+#[derive(Debug)]
 pub struct PostgreSQLEngine {
     pool: PgPool,
+    #[allow(dead_code)]
     config: ConnectionConfig,
 }
 
@@ -174,9 +176,6 @@ mod tests {
             max_connections: None,
             timeout_seconds: None,
         };
-
-        // Note: This test requires a mock since we can't create an actual connection
-        // In a real scenario, you'd use a mock or test database
     }
 
     #[test]
@@ -187,10 +186,5 @@ mod tests {
             max_connections: None,
             timeout_seconds: None,
         };
-
-        // Create a mock engine for testing sample queries
-        // let engine = PostgreSQLEngine { pool: mock_pool, config };
-        // let samples = engine.get_sample_queries();
-        // assert!(!samples.is_empty());
     }
 }

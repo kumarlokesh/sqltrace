@@ -13,7 +13,7 @@ pub struct OptimizationSuggestion {
     /// Type of suggestion (e.g., "Index", "Query Rewrite", "Schema")
     pub suggestion_type: String,
     /// Severity level (High, Medium, Low)
-    pub severity: SeverityLevel,
+    pub severity: Severity,
     /// Human-readable title
     pub title: String,
     /// Detailed description of the issue
@@ -26,11 +26,14 @@ pub struct OptimizationSuggestion {
     pub impact: String,
 }
 
-/// Severity levels for optimization suggestions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SeverityLevel {
+/// Severity level of optimization suggestions
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Severity {
+    /// High priority issues that significantly impact performance
     High,
+    /// Medium priority issues with moderate performance impact
     Medium,
+    /// Low priority issues or minor optimizations
     Low,
 }
 
@@ -109,10 +112,8 @@ impl QueryAdvisor {
         let mut suggestions = Vec::new();
         let mut node_costs = HashMap::new();
 
-        // Analyze all nodes in the plan
         self.analyze_node(&plan.root, &mut suggestions, &mut node_costs, 0);
 
-        // Generate summary
         let summary = self.generate_summary(&suggestions, &node_costs, plan);
         let performance_score = self.calculate_performance_score(&suggestions, plan);
 
@@ -131,7 +132,6 @@ impl QueryAdvisor {
         node_costs: &mut HashMap<String, f64>,
         node_index: usize,
     ) {
-        // Track node costs
         node_costs.insert(node.node_type.clone(), node.total_cost);
 
         // Apply optimization rules
@@ -142,7 +142,6 @@ impl QueryAdvisor {
         self.check_missing_indexes(node, suggestions, node_index);
         self.check_inefficient_joins(node, suggestions, node_index);
 
-        // Analyze child nodes
         for (i, child) in node.plans.iter().enumerate() {
             self.analyze_node(child, suggestions, node_costs, node_index + i + 1);
         }
@@ -158,7 +157,7 @@ impl QueryAdvisor {
         if node.node_type == "Seq Scan" && node.total_cost > self.config.expensive_cost_threshold {
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: "Index".to_string(),
-                severity: SeverityLevel::High,
+                severity: Severity::High,
                 title: "Expensive Sequential Scan Detected".to_string(),
                 description: format!(
                     "Sequential scan on table '{}' has high cost ({:.2}). This indicates the entire table is being scanned.",
@@ -182,7 +181,7 @@ impl QueryAdvisor {
         if node.total_cost > self.config.expensive_cost_threshold * 2.0 {
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: "Performance".to_string(),
-                severity: SeverityLevel::Medium,
+                severity: Severity::Medium,
                 title: format!("Expensive {} Operation", node.node_type),
                 description: format!(
                     "{} operation has very high cost ({:.2}). This is significantly above average.",
@@ -205,7 +204,7 @@ impl QueryAdvisor {
         if node.node_type == "Nested Loop" && node.actual_rows > self.config.large_scan_threshold {
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: "Join".to_string(),
-                severity: SeverityLevel::High,
+                severity: Severity::High,
                 title: "Inefficient Nested Loop Join".to_string(),
                 description: format!(
                     "Nested loop join processing {} rows. This join method is inefficient for large datasets.",
@@ -228,7 +227,7 @@ impl QueryAdvisor {
         if node.node_type == "Sort" && node.actual_rows > self.config.large_scan_threshold {
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: "Index".to_string(),
-                severity: SeverityLevel::Medium,
+                severity: Severity::Medium,
                 title: "Large Sort Operation".to_string(),
                 description: format!(
                     "Sort operation processing {} rows. Large sorts can be memory intensive.",
@@ -257,7 +256,7 @@ impl QueryAdvisor {
             if let Some(filter) = extra.get("Filter") {
                 suggestions.push(OptimizationSuggestion {
                     suggestion_type: "Index".to_string(),
-                    severity: SeverityLevel::Medium,
+                    severity: Severity::Medium,
                     title: "Potential Index Opportunity".to_string(),
                     description: format!(
                         "Filter condition detected: {}. This might benefit from an index.",
@@ -283,7 +282,7 @@ impl QueryAdvisor {
             let join_type = &node.node_type;
             suggestions.push(OptimizationSuggestion {
                 suggestion_type: "Join".to_string(),
-                severity: SeverityLevel::Medium,
+                severity: Severity::Medium,
                 title: format!("Expensive {} Operation", join_type),
                 description: format!(
                     "{} has high cost ({:.2}). The join strategy may not be optimal.",
@@ -305,7 +304,7 @@ impl QueryAdvisor {
     ) -> AnalysisSummary {
         let high_severity_count = suggestions
             .iter()
-            .filter(|s| matches!(s.severity, SeverityLevel::High))
+            .filter(|s| matches!(s.severity, Severity::High))
             .count();
 
         let most_expensive_operation = node_costs
@@ -340,9 +339,9 @@ impl QueryAdvisor {
         // Deduct points for suggestions
         for suggestion in suggestions {
             let deduction = match suggestion.severity {
-                SeverityLevel::High => 20,
-                SeverityLevel::Medium => 10,
-                SeverityLevel::Low => 5,
+                Severity::High => 20,
+                Severity::Medium => 10,
+                Severity::Low => 5,
             };
             score = score.saturating_sub(deduction);
         }

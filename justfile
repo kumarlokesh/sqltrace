@@ -14,20 +14,25 @@ setup:
     just db-wait
     @echo "✅ Development environment ready!"
 
-# Start PostgreSQL database container
+# Start PostgreSQL database container (primary)
 db-up:
     @echo "🐘 Starting PostgreSQL container..."
     docker-compose up -d postgres
 
-# Stop database container  
+# Start all database engines
+db-up-all:
+    @echo "🗄️ Starting all database engines..."
+    docker-compose up -d postgres mysql sqlite
+
+# Stop database containers
 db-down:
-    @echo "🛑 Stopping PostgreSQL container..."
+    @echo "🛑 Stopping database containers..."
     docker-compose down
 
-# Restart database container
+# Restart PostgreSQL database
 db-restart: db-down db-up
 
-# Wait for database to be ready
+# Wait for PostgreSQL to be ready
 db-wait:
     #!/usr/bin/env bash
     echo "⏳ Waiting for PostgreSQL to be ready..."
@@ -54,18 +59,38 @@ pgadmin-up:
     @echo "   Email: admin@sqltrace.dev"
     @echo "   Password: postgres"
 
-# Connect to database with psql
+# Connect to PostgreSQL with psql
 db-connect:
     docker-compose exec postgres psql -U postgres -d sqltrace_dev
+
+# Connect to MySQL
+mysql-connect:
+    docker-compose exec mysql mysql -u mysql -pmysql sqltrace_dev
+
+# Connect to SQLite
+sqlite-connect:
+    docker-compose exec sqlite sqlite3 /data/sqltrace_dev.db
 
 # Development & Testing
 # =====================
 
-# Run the application in development mode
+# Run the application in development mode with PostgreSQL
 dev:
     @echo "🚀 Starting SQLTrace web server..."
     @echo "📊 Open http://localhost:3000 in your browser"
     cargo run -- --database-url "postgres://postgres:postgres@localhost:5432/sqltrace_dev"
+
+# Run with MySQL
+dev-mysql: 
+    @echo "🚀 Starting SQLTrace with MySQL..."
+    @echo "📊 Open http://localhost:3000 in your browser"
+    cargo run -- --database-url "mysql://mysql:mysql@localhost:3306/sqltrace_dev"
+
+# Run with SQLite
+dev-sqlite:
+    @echo "🚀 Starting SQLTrace with SQLite..."
+    @echo "📊 Open http://localhost:3000 in your browser"
+    cargo run -- --database-url "sqlite:///tmp/sqltrace_dev.db"
 
 # Run all tests (unit + integration)
 test: db-wait
@@ -131,14 +156,16 @@ db-reset: db-down db-up db-wait
 # Show database status
 db-status:
     @echo "📊 Database Status:"
-    @docker-compose ps postgres
+    @docker-compose ps
     @echo ""
-    @echo "🔗 Connection: postgres://postgres:postgres@localhost:5432/sqltrace_dev"
+    @echo "🐘 PostgreSQL: postgres://postgres:postgres@localhost:5432/sqltrace_dev"
+    @echo "🐬 MySQL:      mysql://mysql:mysql@localhost:3306/sqltrace_dev"
+    @echo "🗄️ SQLite:     /data/sqltrace_dev.db (in container)"
 
 # Example Queries
 # ===============
 
-# Show some example queries you can test
+# Show example queries for testing
 examples:
     @echo "📝 Example SQL queries to test in SQLTrace:"
     @echo ""
@@ -153,10 +180,12 @@ examples:
     @echo "  ORDER BY order_count DESC;"
     @echo ""
     @echo "Complex query with multiple joins:"
-    @echo "  SELECT p.name, c.name as category, AVG(r.rating) as avg_rating"
+    @echo "  SELECT p.name, c.name as category, AVG(oi.quantity) as avg_quantity"
     @echo "  FROM ecommerce.products p"
     @echo "  JOIN ecommerce.categories c ON p.category_id = c.id"
-    @echo "  LEFT JOIN ecommerce.reviews r ON p.id = r.product_id"
+    @echo "  LEFT JOIN ecommerce.order_items oi ON p.id = oi.product_id"
     @echo "  GROUP BY p.id, p.name, c.name"
-    @echo "  HAVING AVG(r.rating) > 4.0"
-    @echo "  ORDER BY avg_rating DESC;"
+    @echo "  HAVING AVG(oi.quantity) > 1.0"
+    @echo "  ORDER BY avg_quantity DESC;"
+    @echo ""
+    @echo "🎯 Open http://localhost:3000 and paste these queries to analyze their execution plans!"

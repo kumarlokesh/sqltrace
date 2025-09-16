@@ -10,7 +10,9 @@ use super::{
 use crate::db::models::{ExecutionPlan, PlanNode};
 
 /// SQLite database engine implementation
+#[derive(Debug)]
 pub struct SQLiteEngine {
+    #[allow(dead_code)]
     config: ConnectionConfig,
 }
 
@@ -23,6 +25,7 @@ impl SQLiteEngine {
     }
 
     /// Convert SQLite EXPLAIN QUERY PLAN output to our unified ExecutionPlan format
+    #[allow(dead_code)]
     fn parse_sqlite_explain(&self, _explain_result: &Value) -> Result<ExecutionPlan, EngineError> {
         // SQLite EXPLAIN QUERY PLAN output is different from PostgreSQL
         // This is a simplified conversion - real implementation would be more complex

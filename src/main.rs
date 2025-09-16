@@ -33,37 +33,29 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Set up logging
     setup_logging();
 
-    // Parse command line arguments
     let args = Args::parse();
 
-    // Initialize database connection
     let db = Database::new(&args.database_url).await?;
     info!("Connected to database");
 
-    // Create application state
     let state = AppState {
         db,
         advisor: QueryAdvisor::new(),
     };
 
-    // Build the router
     let app = create_router(state);
 
-    // Create socket address
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
     info!("Starting server on http://{}", addr);
 
-    // Start the server
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
 }
 
-/// Configure logging for the application
 fn setup_logging() {
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)

@@ -10,7 +10,6 @@ pub fn validate_query(query: &str) -> Result<(), String> {
         return Err("Query cannot be empty".to_string());
     }
 
-    // Parse the SQL query
     let dialect = PostgreSqlDialect {};
     match Parser::parse_sql(&dialect, query) {
         Ok(statements) => {
@@ -18,7 +17,6 @@ pub fn validate_query(query: &str) -> Result<(), String> {
                 return Err("No valid SQL statements found".to_string());
             }
 
-            // Check if all statements are SELECT statements
             for statement in &statements {
                 match statement {
                     Statement::Query(_) => {

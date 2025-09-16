@@ -14,7 +14,6 @@ use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 use crate::advisor::QueryAdvisor;
 use crate::benchmark::{BenchmarkConfig, BenchmarkResult, BenchmarkSuite};
 use crate::db::Database;
-use std::collections::HashMap;
 
 /// Application state shared across handlers
 #[derive(Clone)]

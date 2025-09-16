@@ -1,5 +1,3 @@
-// Main application JavaScript for SQLTrace
-
 class SQLTraceApp {
     constructor() {
         this.queryInput = document.getElementById('queryInput');
@@ -11,7 +9,6 @@ class SQLTraceApp {
         this.advisorSection = document.getElementById('advisorSection');
         this.advisorContent = document.getElementById('advisorContent');
         
-        // History and comparison elements
         this.historySection = document.getElementById('historySection');
         this.historyList = document.getElementById('historyList');
         this.clearHistoryBtn = document.getElementById('clearHistory');
@@ -20,7 +17,6 @@ class SQLTraceApp {
         this.exitComparisonBtn = document.getElementById('exitComparison');
         this.comparisonResults = document.getElementById('comparisonResults');
         
-        // App state
         this.currentPlanData = null;
         this.currentAdvisorAnalysis = null;
         this.queryHistory = this.loadHistoryFromStorage();
@@ -38,7 +34,6 @@ class SQLTraceApp {
             }
         });
 
-        // Add event listeners for example queries
         document.querySelectorAll('.example-query').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const query = e.target.getAttribute('data-query');
@@ -47,18 +42,14 @@ class SQLTraceApp {
             });
         });
 
-        // Add event listeners for export buttons
         document.getElementById('exportJson').addEventListener('click', () => this.exportAsJson());
         document.getElementById('exportText').addEventListener('click', () => this.exportAsText());
         document.getElementById('exportHtml').addEventListener('click', () => this.exportAsHtml());
         document.getElementById('copyPlan').addEventListener('click', () => this.copyToClipboard());
 
-        // Add event listeners for history and comparison
         this.clearHistoryBtn.addEventListener('click', () => this.clearHistory());
         this.toggleComparisonBtn.addEventListener('click', () => this.toggleComparison());
         this.exitComparisonBtn.addEventListener('click', () => this.exitComparison());
-
-        // Initialize theme and history
         this.initializeTheme();
         this.renderHistory();
     }
@@ -94,7 +85,6 @@ class SQLTraceApp {
                 this.renderAdvisorSuggestions(data.advisor_analysis);
                 this.exportSection.style.display = 'block';
                 
-                // Add to history
                 this.addToHistory(query, data.plan, data.advisor_analysis);
             }
         } catch (error) {
@@ -111,7 +101,6 @@ class SQLTraceApp {
         this.executeBtn.querySelector('.btn-text').textContent = loading ? 'Analyzing...' : 'Analyze Query';
         this.executeBtn.querySelector('.btn-spinner').style.display = loading ? 'inline-block' : 'none';
         
-        // Add loading class to main container
         const querySection = document.querySelector('.query-section');
         if (loading) {
             querySection.classList.add('loading');
@@ -144,16 +133,13 @@ class SQLTraceApp {
             return;
         }
 
-        // Store current plan data for export functionality
         this.currentPlanData = planData;
 
-        // Create performance metrics summary
         const performanceMetrics = this.renderPerformanceMetrics(planData);
         
         const planTree = document.createElement('div');
         planTree.className = 'plan-tree';
         
-        // Render root nodes
         planData.root_indices.forEach(rootIdx => {
             this.renderNode(planTree, planData.nodes, rootIdx, 0);
         });
@@ -161,7 +147,6 @@ class SQLTraceApp {
         this.planContainer.innerHTML = performanceMetrics;
         this.planContainer.appendChild(planTree);
         
-        // Show export section
         this.exportSection.style.display = 'block';
     }
 
@@ -183,11 +168,9 @@ class SQLTraceApp {
             }
         }
 
-        // Create node content
         const nodeContent = this.createNodeContent(node, level, hasChildren, node.expanded);
         nodeElement.innerHTML = nodeContent;
 
-        // Add click handler for expandable nodes
         if (hasChildren) {
             nodeElement.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -197,7 +180,6 @@ class SQLTraceApp {
 
         container.appendChild(nodeElement);
 
-        // Render children if expanded
         if (hasChildren && node.expanded) {
             node.children.forEach(childIdx => {
                 this.renderNode(container, nodes, childIdx, level + 1);
@@ -221,7 +203,6 @@ class SQLTraceApp {
             nodeTitle += ` (${alias})`;
         }
 
-        // Build details
         const details = [];
         
         if (planNode.total_cost !== undefined) {
@@ -232,13 +213,10 @@ class SQLTraceApp {
             details.push(`<span class="plan-node-time">Time: ${planNode.actual_startup_time?.toFixed(3) || 0}..${planNode.actual_total_time.toFixed(3)}ms</span>`);
         }
         
-        // Note: plan_rows field removed from structure
-        
         if (planNode.actual_rows !== undefined) {
             details.push(`<span class="plan-node-rows">Actual Rows: ${planNode.actual_rows}</span>`);
         }
 
-        // Add condition information from extra field
         if (planNode.extra && typeof planNode.extra === 'object') {
             if (planNode.extra['Index Cond']) {
                 details.push(`Index Cond: ${planNode.extra['Index Cond']}`);
@@ -264,7 +242,6 @@ class SQLTraceApp {
         const node = nodes[nodeIdx];
         node.expanded = !node.expanded;
         
-        // Re-render the entire plan to reflect the change
         const planData = {
             nodes: nodes,
             root_indices: this.getRootIndices(nodes)
@@ -284,7 +261,6 @@ class SQLTraceApp {
         return nodes.map((_, idx) => idx).filter(idx => !allChildren.has(idx));
     }
 
-    // Export functionality
     exportAsJson() {
         if (!this.currentPlanData) return;
         
@@ -328,7 +304,6 @@ class SQLTraceApp {
         
         output += '\n';
         
-        // Add children
         if (node.children && node.children.length > 0) {
             node.children.forEach(childIdx => {
                 output += this.nodeToText(nodes, childIdx, level + 1);
@@ -345,7 +320,6 @@ class SQLTraceApp {
             const textOutput = this.nodeToText(this.currentPlanData.nodes, this.currentPlanData.root_indices[0], 0);
             await navigator.clipboard.writeText(textOutput);
             
-            // Show feedback
             const btn = document.getElementById('copyPlan');
             const originalText = btn.textContent;
             btn.textContent = 'Copied!';
@@ -546,7 +520,6 @@ class SQLTraceApp {
         URL.revokeObjectURL(url);
     }
 
-    // Theme functionality
     toggleTheme() {
         const body = document.body;
         const themeToggle = document.getElementById('themeToggle');
@@ -575,7 +548,6 @@ class SQLTraceApp {
         }
     }
 
-    // Performance metrics calculation
     calculatePerformanceMetrics(planData) {
         if (!planData || !planData.nodes) return null;
         
@@ -628,7 +600,6 @@ class SQLTraceApp {
         `;
     }
 
-    // History Management Methods
     loadHistoryFromStorage() {
         try {
             const history = localStorage.getItem('sqltrace-history');
@@ -657,10 +628,7 @@ class SQLTraceApp {
             metrics: this.calculatePerformanceMetrics(planData)
         };
 
-        // Add to beginning of history (most recent first)
         this.queryHistory.unshift(historyItem);
-
-        // Keep only last 50 queries
         this.queryHistory = this.queryHistory.slice(0, 50);
 
         this.saveHistoryToStorage();
@@ -729,7 +697,6 @@ class SQLTraceApp {
 
         this.historyList.innerHTML = historyHTML;
 
-        // Add event listeners to history items
         this.historyList.querySelectorAll('.history-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 const id = e.currentTarget.getAttribute('data-id');
@@ -746,21 +713,16 @@ class SQLTraceApp {
         const item = this.queryHistory.find(h => h.id === id);
         if (!item) return;
 
-        // Load query into input
         this.queryInput.value = item.query;
 
-        // Render the plan and advisor results
         this.currentPlanData = item.planData;
         this.currentAdvisorAnalysis = item.advisorAnalysis;
         this.renderPlan(item.planData);
         this.renderPerformanceMetrics(item.planData);
         this.renderAdvisorSuggestions(item.advisorAnalysis);
         this.exportSection.style.display = 'block';
-
-        // Highlight selected item
     }
 
-    // Comparison Methods
     toggleComparison() {
     this.comparisonMode = !this.comparisonMode;
         
@@ -793,7 +755,6 @@ class SQLTraceApp {
             if (this.selectedQueries.length < 2) {
                 this.selectedQueries.push(id);
             } else {
-                // Replace first selected with new selection
                 this.selectedQueries[0] = this.selectedQueries[1];
                 this.selectedQueries[1] = id;
             }
@@ -825,7 +786,6 @@ class SQLTraceApp {
         document.getElementById('comparisonA').innerHTML = comparisonA;
         document.getElementById('comparisonB').innerHTML = comparisonB;
         
-        // Add performance comparison
         const comparisonGrid = document.querySelector('.comparison-grid');
         let existingDiff = comparisonGrid.querySelector('.performance-diff');
         if (existingDiff) existingDiff.remove();
@@ -907,7 +867,6 @@ class SQLTraceApp {
     }
 }
 
-// Benchmark functionality
 async function runBenchmark() {
     const query = document.getElementById('sql-query').value.trim();
     if (!query) {
@@ -926,7 +885,6 @@ async function runBenchmark() {
     const resultsDiv = document.getElementById('benchmark-results');
     const button = event.target;
     
-    // Show loading state
     button.disabled = true;
     button.innerHTML = '<span class="loading-spinner"></span> Running Benchmark...';
     resultsDiv.innerHTML = '';
@@ -958,7 +916,6 @@ async function runBenchmark() {
         console.error('Benchmark error:', error);
         showError('Failed to run benchmark. Please check your connection and try again.');
     } finally {
-        // Reset button state
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-stopwatch"></i> Run Benchmark';
     }
@@ -986,7 +943,6 @@ async function runComparison() {
     const resultsDiv = document.getElementById('comparison-results');
     const button = event.target;
     
-    // Show loading state
     button.disabled = true;
     button.innerHTML = '<span class="loading-spinner"></span> Comparing Queries...';
     resultsDiv.innerHTML = '';
@@ -1024,7 +980,6 @@ async function runComparison() {
         console.error('Comparison error:', error);
         showError('Failed to run comparison. Please check your connection and try again.');
     } finally {
-        // Reset button state
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-balance-scale"></i> Compare Queries';
     }
@@ -1135,7 +1090,6 @@ function displayComparisonResults(comparison) {
 }
 
 function formatDuration(duration) {
-    // Duration is in nanoseconds, convert to appropriate unit
     const nanos = duration.nanos || 0;
     const secs = duration.secs || 0;
     
@@ -1174,7 +1128,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new SQLTraceApp();
 });

@@ -3,24 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQLTrace - PostgreSQL Query Visualizer</title>
+    <title>SQLTrace - SQL Query Analyzer</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <!-- Theme Toggle Button -->
     <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">🌙</button>
     
     <div class="container">
         <header class="header">
             <h1>SQLTrace</h1>
-            <p>PostgreSQL Query Execution Plan Visualizer</p>
+            <p>Multi-Database SQL Query Execution Plan Analyzer</p>
         </header>
 
         <main class="main">
             <div class="query-section">
                 <h2>SQL Query</h2>
                 
-                <!-- Example Queries Section -->
                 <div class="examples-section">
                     <h3>📝 Example Queries</h3>
                     <div class="example-queries">
@@ -88,13 +86,11 @@ LIMIT 10;</textarea>
                     </div>
                 </div>
                 
-                <!-- Advisor Suggestions Section -->
                 <div id="advisorSection" class="advisor-section" style="display: none;">
                     <h3>🎯 Optimization Suggestions</h3>
                     <div id="advisorContent"></div>
                 </div>
 
-                <!-- Export Section -->
                 <div id="exportSection" class="export-section" style="display: none;">
                     <h3>Export Plan</h3>
                     <div class="export-buttons">
@@ -105,7 +101,6 @@ LIMIT 10;</textarea>
                     </div>
                 </div>
 
-                <!-- Query History Section -->
                 <div id="historySection" class="history-section">
                     <div class="history-header">
                         <h3>📝 Query History</h3>
@@ -121,7 +116,6 @@ LIMIT 10;</textarea>
                     </div>
                 </div>
 
-                <!-- Comparison Section -->
                 <div id="comparisonSection" class="comparison-section" style="display: none;">
                     <div class="comparison-header">
                         <h3>🔍 Query Comparison</h3>
@@ -149,11 +143,9 @@ LIMIT 10;</textarea>
         </main>
     </div>
 
-    <!-- Benchmark Section -->
     <div class="benchmark-section">
         <h2>Benchmark Queries</h2>
         
-        <!-- Single Query Benchmark -->
         <div class="benchmark-single">
             <h3>Single Query Benchmark</h3>
             <div class="benchmark-config">
@@ -176,7 +168,6 @@ LIMIT 10;</textarea>
             <div id="benchmark-results" class="benchmark-results"></div>
         </div>
         
-        <!-- Query Comparison Benchmark -->
         <div class="benchmark-comparison">
             <h3>Compare Two Queries</h3>
             <div class="comparison-inputs">

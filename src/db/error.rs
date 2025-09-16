@@ -54,8 +54,6 @@ impl From<SqlxError> for DbError {
     }
 }
 
-// The From<serde_json::Error> is automatically derived by thiserror's #[error("...")] attribute
-
 /// Convenience type for Results that use DbError
 ///
 /// This is the standard result type returned by database operations.

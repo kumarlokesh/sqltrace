@@ -3,12 +3,11 @@ name = "sqltrace-rs"
 version = "0.1.0"
 edition = "2021"
 authors = ["Lokesh Kumar <lkumar94@gmail.com>"]
-description = "A Web-Based SQL Query Visualizer & Advisor"
-license = "MIT OR Apache-2.0"
+description = "A high-performance, multi-database SQL query analyzer and optimizer"
+license = "MIT"
 repository = "https://github.com/kumarlokesh/sqltrace-rs"
 
 [profile.test]
-# Ensure tests are run sequentially to avoid database deadlocks
 test-threads = 1
 
 [dependencies]

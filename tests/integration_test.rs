@@ -26,7 +26,10 @@ async fn create_app() -> Router {
         .expect("Failed to connect to database - ensure PostgreSQL is running");
 
     // Use the actual router from main
-    let state = sqltrace_rs::AppState { db };
+    let state = sqltrace_rs::AppState {
+        db,
+        advisor: sqltrace_rs::advisor::QueryAdvisor::new(),
+    };
     sqltrace_rs::create_router(state)
 }
 

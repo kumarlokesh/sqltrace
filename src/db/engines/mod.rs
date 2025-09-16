@@ -5,7 +5,6 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::error::Error as StdError;
 
 use crate::db::models::ExecutionPlan;
 
@@ -16,27 +15,35 @@ pub mod sqlite;
 /// Errors that can occur during database operations
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
+    /// Connection-related errors
     #[error("Connection error: {0}")]
     Connection(String),
 
+    /// Query execution errors
     #[error("Query execution error: {0}")]
     QueryExecution(String),
 
+    /// Plan parsing errors
     #[error("Plan parsing error: {0}")]
     PlanParsing(String),
 
+    /// Unsupported operation errors
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
 
+    /// Configuration errors
     #[error("Configuration error: {0}")]
     Configuration(String),
 }
 
 /// Database engine types supported by SQLTrace
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EngineType {
+    /// PostgreSQL database engine
     PostgreSQL,
+    /// MySQL database engine
     MySQL,
+    /// SQLite database engine
     SQLite,
 }
 
@@ -50,12 +57,16 @@ impl std::fmt::Display for EngineType {
     }
 }
 
-/// Connection configuration for different database engines
+/// Connection configuration for database engines
 #[derive(Debug, Clone)]
 pub struct ConnectionConfig {
+    /// The type of database engine
     pub engine_type: EngineType,
+    /// Connection string for the database
     pub connection_string: String,
+    /// Maximum number of connections in the pool
     pub max_connections: Option<u32>,
+    /// Timeout for database operations in seconds
     pub timeout_seconds: Option<u64>,
 }
 
@@ -84,52 +95,78 @@ pub trait DatabaseEngine: Send + Sync {
     fn supports_feature(&self, feature: &DatabaseFeature) -> bool;
 }
 
-/// Database connection and version information
+/// Information about a database connection and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseInfo {
+    /// The type of database engine
     pub engine_type: EngineType,
+    /// Database version string
     pub version: String,
+    /// Current connection status
     pub connection_status: String,
+    /// List of supported database features
     pub features_supported: Vec<DatabaseFeature>,
 }
 
-/// Database features that may or may not be supported by different engines
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Database features that may be supported by different engines
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DatabaseFeature {
+    /// Support for detailed execution plans with timing and row counts
     DetailedExecutionPlan,
+    /// Support for actual row counts in execution plans
     ActualRowCounts,
+    /// Support for cost estimation in query planning
     CostEstimation,
+    /// Support for index usage suggestions
     IndexSuggestions,
+    /// Support for query optimization hints
     QueryOptimizationHints,
+    /// Support for parallel query execution
     ParallelExecution,
+    /// Support for partitioned tables
     PartitionedTables,
 }
 
 /// Sample query for demonstration purposes
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleQuery {
+    /// Display name for the query
     pub name: String,
+    /// Description of what the query does
     pub description: String,
+    /// The SQL query text
     pub query: String,
+    /// Category of the query
     pub category: QueryCategory,
 }
 
-/// Query category for sample queries
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Categories for organizing sample queries
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum QueryCategory {
+    /// Basic SELECT queries
     BasicSelect,
+    /// JOIN queries
     Join,
+    /// Aggregation queries (GROUP BY, HAVING)
     Aggregation,
+    /// Subquery examples
     Subquery,
+    /// Common Table Expression (CTE) examples
     CTE,
+    /// Window function examples
     Window,
+    /// Performance-focused queries
     Performance,
 }
 
-/// Unified database engine enum that wraps all supported engines
+/// Enum wrapper for different database engine implementations
+#[derive(Debug)]
 pub enum DatabaseEngineImpl {
+    /// PostgreSQL engine implementation
     PostgreSQL(postgresql::PostgreSQLEngine),
+    /// MySQL engine implementation
     MySQL(mysql::MySQLEngine),
+    /// SQLite engine implementation
     SQLite(sqlite::SQLiteEngine),
 }
 

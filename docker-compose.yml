@@ -76,20 +76,6 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
-  # Optional: phpMyAdmin for MySQL management
-  phpmyadmin:
-    image: phpmyadmin:latest
-    environment:
-      PMA_HOST: mysql
-      PMA_USER: mysql
-      PMA_PASSWORD: mysql
-    ports:
-      - "8081:80"
-    depends_on:
-      - mysql
-    profiles:
-      - admin
-
 volumes:
   postgres_data:
   mysql_data:

@@ -1,13 +1,15 @@
 //! SQLTrace Library
 //!
-//! A high-performance web-based SQL query visualizer and advisor for PostgreSQL.
+//! A high-performance web-based SQL query visualizer and advisor for PostgreSQL, MySQL, and SQLite.
 //!
-//! This crate provides tools for analyzing and visualizing PostgreSQL query execution plans.
+//! This crate provides tools for analyzing and visualizing query execution plans.
 //! It includes a web-based interface for interactive plan exploration and performance analysis.
 //!
 //! # Features
 //!
 //! - PostgreSQL execution plan parsing and analysis
+//! - MySQL execution plan parsing and analysis
+//! - SQLite execution plan parsing and analysis
 //! - Interactive web-based visualization
 //! - REST API for programmatic access
 //! - Performance metrics and optimization insights

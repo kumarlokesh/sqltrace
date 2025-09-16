@@ -77,7 +77,7 @@ impl Database {
         }
 
         // First, try to parse as an array of plans (the common case)
-        let explain_plan = if let Ok(mut explain_outputs) =
+        let explain_plan = if let Ok(explain_outputs) =
             serde_json::from_value::<Vec<ExplainPlan>>(plan_json.clone())
         {
             explain_outputs

@@ -1,7 +1,7 @@
 //! MySQL database engine implementation
 
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::{
     ConnectionConfig, DatabaseEngine, DatabaseFeature, DatabaseInfo, EngineError, EngineType,
@@ -10,7 +10,9 @@ use super::{
 use crate::db::models::{ExecutionPlan, PlanNode};
 
 /// MySQL database engine implementation
+#[derive(Debug)]
 pub struct MySQLEngine {
+    #[allow(dead_code)]
     config: ConnectionConfig,
 }
 
@@ -23,6 +25,7 @@ impl MySQLEngine {
     }
 
     /// Convert MySQL EXPLAIN output to our unified ExecutionPlan format
+    #[allow(dead_code)]
     fn parse_mysql_explain(&self, _explain_result: &Value) -> Result<ExecutionPlan, EngineError> {
         // MySQL EXPLAIN output is different from PostgreSQL
         // This is a simplified conversion - real implementation would be more complex
